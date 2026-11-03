@@ -57,9 +57,13 @@ Phones:'<rect x="44" y="6" width="32" height="64" rx="6"/><rect x="48" y="12" wi
 'CCTV & Security':'<path d="M30 20h60v6H30z"/><path d="M36 26c0 20 10 34 24 34s24-14 24-34"/><circle cx="60" cy="40" r="11" fill="#DCE6FB"/><circle cx="60" cy="40" r="5"/><path d="M52 66h16"/>',
 Storage:'<rect x="34" y="10" width="52" height="60" rx="6"/><circle cx="60" cy="36" r="14" fill="#DCE6FB"/><circle cx="60" cy="36" r="3"/><path d="M42 60h10"/>',
 Accessories:'<rect x="16" y="30" width="18" height="12" rx="3"/><path d="M34 36h8c14 0 14 20 30 20h14"/><rect x="86" y="50" width="18" height="12" rx="3"/><path d="M10 36h6M104 56h6"/>',
+Monitors:'<rect x="14" y="8" width="92" height="54" rx="3"/><rect x="19" y="13" width="82" height="44" rx="1" fill="#DCE6FB" stroke="none"/><path d="M60 62v8M44 72h32"/>',
+Networking:'<rect x="16" y="44" width="88" height="20" rx="4"/><path d="M28 54h.01M38 54h.01M48 54h.01"/><path d="M80 54h14"/><path d="M36 44 30 16M84 44l6-28"/>',
+Printers:'<path d="M36 26V8h48v18"/><rect x="16" y="26" width="88" height="30" rx="4"/><rect x="36" y="46" width="48" height="26" fill="#DCE6FB"/><path d="M90 36h.01"/>',
 Other:'<path d="M60 10 98 30v32L60 72 22 62V30z"/><path d="M22 30l38 14 38-14M60 44v28"/>'
 };
-const art = (p, w = 120, h = 80) => `<svg width="${w}" height="${h}" viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ART[p && p.cat] || ART.Other}</svg>`;
+const artKey = c => { c = String(c || ''); if (ART[c]) return c; const m = [[/laptop|notebook|macbook/i, 'Laptops'], [/phone|tablet|ipad/i, 'Phones'], [/cctv|camera|secur|dvr|nvr/i, 'CCTV & Security'], [/stor|drive|hdd|ssd|flash|memory/i, 'Storage'], [/monitor|desktop|screen|tv|display/i, 'Monitors'], [/network|router|switch|wifi/i, 'Networking'], [/print|scan/i, 'Printers'], [/access|cable|charger|mouse|keyboard|bag/i, 'Accessories']].find(([r]) => r.test(c)); return m ? m[1] : 'Other' };
+const art = (p, w = 120, h = 80) => `<svg width="${w}" height="${h}" viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ART[artKey(p && p.cat)]}</svg>`;
 const pic = (p, w, h) => p && p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy">` : art(p, w, h);
 
 /* ================= helpers ================= */
@@ -96,11 +100,14 @@ const S = { costs: {}, staff: {} }; COLL.forEach(c => S[c] = {});
 const DEFAULT_SETTINGS = {
   areas: [{ name: 'Dansoman', fee: 25 }, { name: 'Osu', fee: 35 }, { name: 'East Legon', fee: 40 }, { name: 'Madina', fee: 45 }, { name: 'Kasoa', fee: 50 }, { name: 'Tema', fee: 60 }],
   riders: [],
-  store: { name: 'PriceRight Tech Ltd', branch: 'Main Branch', address: 'Accra, Ghana', phone: '', whatsapp: '', email: '', receiptFooter: 'Returns and warranty claims need the serial number shown above.' }
+  store: { name: 'PriceRight Tech Ltd', branch: 'Main Branch', address: 'Accra, Ghana', phone: '', whatsapp: '', email: '', receiptFooter: 'Returns and warranty claims need the serial number shown above.', hours: 'Monday to Saturday, 8:30am to 6:30pm', map: '' },
+  categories: ['Laptops', 'Desktops', 'Monitors', 'Phones', 'Tablets', 'CCTV & Security', 'Networking', 'Storage', 'Printers', 'Accessories'],
+  sku_types: [{ name: 'Laptops', prefix: 'LAP' }, { name: 'Desktops', prefix: 'DSK' }, { name: 'Monitors', prefix: 'MON' }, { name: 'Phones', prefix: 'PHN' }, { name: 'Tablets', prefix: 'TAB' }, { name: 'CCTV cameras', prefix: 'CCTV' }, { name: 'DVR and NVR recorders', prefix: 'REC' }, { name: 'Hard drives', prefix: 'HDD' }, { name: 'Networking', prefix: 'NET' }, { name: 'Printers', prefix: 'PRN' }, { name: 'Accessories', prefix: 'ACC' }],
+  banners: [], blog: [], blog_drafts: []
 };
 // Offline-only accounts are not used once Supabase is connected; staff sign in with their Supabase logins.
 const LOCAL_STAFF = {};
-const set_ = k => S.settings[k] ?? DEFAULT_SETTINGS[k];
+const set_ = k => k === 'store' ? { ...DEFAULT_SETTINGS.store, ...(S.settings.store || {}) } : S.settings[k] ?? DEFAULT_SETTINGS[k];
 let ME = null, sb = null;
 const NET = { online: navigator.onLine, outbox: [] };
 const UI = { pos: null, recv: null, fr: null, count: null, salesF: { range: 'today', q: '', st: 'all' }, invF: { q: '', st: 'all' }, prodF: { q: '', cat: 'All' }, ordTab: 'pack', rep: 30, audQ: '', custQ: '', menu: false };
@@ -110,7 +117,7 @@ resetPos(); resetRecv();
 
 const ROLE_NAME = { attendant: 'Shop assistant', owner: 'Shop owner', it_admin: 'IT admin' };
 const OI = ['owner', 'it_admin'], O = ['owner'], IT = ['it_admin'];
-const PERM = { cost: OI, catalog: OI, void: O, decide: O, inspect: OI, closeGap: OI, reports: OI, audit: OI, settings: OI, staffView: OI, staffEdit: IT, writeOff: O, cancelOrder: OI, unitStatus: OI, conflict: O, allSales: OI };
+const PERM = { messages: ['attendant', 'owner', 'it_admin'], cost: OI, catalog: OI, void: O, decide: O, inspect: OI, closeGap: OI, reports: OI, audit: OI, settings: OI, staffView: OI, staffEdit: IT, writeOff: O, cancelOrder: OI, unitStatus: OI, conflict: O, allSales: OI };
 const can = a => !!ME && (PERM[a] || []).includes(ME.role);
 const meName = () => ME ? (ME.name || ME.email.split('@')[0]) : 'Customer';
 
@@ -243,6 +250,7 @@ async function loadAll() {
   COLL.forEach((c, i) => { S[c] = {}; res[i].forEach(r => { if (c === 'settings') S.settings[r.key] = r.data; else S[c][r.key] = { ...r.data, id: r.key } }) });
   S.costs = {}; if (can('cost')) (await fetchAll('costs')).forEach(r => S.costs[r.key] = Number(r.cost));
   S.staff = {}; if (can('staffView')) (await fetchAll('staff_roles')).forEach(r => S.staff[r.email] = r);
+  S.messages = {}; try { (await fetchAll('messages')).forEach(r => S.messages[r.key] = { ...r.data, id: r.key }) } catch (e) { }
   // keep local offline changes visible
   NET.outbox.forEach(o => applyChanges(o.ch));
   persistLocal();
@@ -251,6 +259,7 @@ function subscribeRealtime() {
   if (!REMOTE || !sb || UI.rt) return;
   UI.rt = sb.channel('tle-db').on('postgres_changes', { event: '*', schema: 'public' }, p => {
     const t = p.table, row = p.new && p.new.key ? p.new : null;
+    if (row && t === 'messages') { S.messages = S.messages || {}; S.messages[row.key] = { ...row.data, id: row.key }; return softRender() }
     if (!row || !COLL.includes(t)) return;
     if (t === 'settings') S.settings[row.key] = row.data; else S[t][row.key] = { ...row.data, id: row.key };
     persistLocal(); softRender();
@@ -287,11 +296,20 @@ async function photoUrl(p) {
   return data ? data.signedUrl : '';
 }
 
+/* ================= email receipts ================= */
+// Sends through the Supabase Edge Function "send-receipt". Quietly does nothing until email is set up.
+async function emailReceipt(ref, tell) {
+  if (!REMOTE || !NET.online) return;
+  try {
+    const { data, error } = await sb.functions.invoke('send-receipt', { body: ref });
+    if (!error && data && data.sent && tell) toast('Receipt emailed to the customer', 'ok');
+  } catch (e) { }
+}
 /* ================= store API (public) ================= */
 const API = {
   async catalog() {
     if (REMOTE) {
-      const [{ data, error }, st2] = await Promise.all([sb.rpc('public_catalog'), sb.from('settings').select('*').in('key', ['areas', 'store'])]);
+      const [{ data, error }, st2] = await Promise.all([sb.rpc('public_catalog'), sb.from('settings').select('*').in('key', ['areas', 'store', 'banners', 'blog', 'categories'])]);
       if (error) throw error;
       (st2.data || []).forEach(r => S.settings[r.key] = r.data);
       S.products = {}; UI.avail = {};
@@ -299,6 +317,12 @@ const API = {
       return;
     }
     UI.avail = {}; vals('products').forEach(p => UI.avail[p.id] = avail(p.id));
+  },
+  async contact(m) {
+    if (REMOTE) { const { data, error } = await sb.rpc('contact_message', { p: m }); if (error) throw new Error(friendlyErr(error.message)); return data }
+    if (String(m.name || '').trim().length < 2) throw new Error('Add your name.'); if (String(m.message || '').trim().length < 5) throw new Error('Write your message.');
+    if (normPhone(m.phone).length < 9 && !/^\S+@\S+\.\S+$/.test(m.email || '')) throw new Error('Add a phone number or email so we can reply.');
+    const id = uid('M'), all = ls.get('tle-messages', {}); all[id] = { ...m, id, status: 'new', t: Date.now() }; ls.set('tle-messages', all); S.messages = all; return id;
   },
   async placeOrder(p) {
     if (REMOTE) { const { data, error } = await sb.rpc('place_order', { p }); if (error) throw new Error(friendlyErr(error.message)); return data }
@@ -512,14 +536,16 @@ const NAV = [
   ['Stock', [['products', 'Products', 'box'], ['receive', 'Receive stock', 'inbox'], ['inventory', 'Inventory', 'layers'], ['count', 'Stock count', 'count']]],
   ['Aftercare', [['returns', 'Returns desk', 'tool'], ['customers', 'Customers', 'users']]],
   ['Business', [['sales', 'Sales', 'cash'], ['reports', 'Reports', 'chart', 'reports'], ['audit', 'Audit log', 'doc', 'audit']]],
+  ['Website', [['messages', 'Messages', 'mail', 'messages'], ['banners', 'Banners', 'image', 'catalog'], ['blog', 'Blog', 'edit', 'catalog'], ['catalogue', 'Categories and SKUs', 'tag', 'catalog']]],
   ['Admin', [['settings', 'Settings', 'gear', 'settings'], ['staff', 'Staff accounts', 'userplus', 'staffView']]]
 ];
-const TITLES = { dashboard: 'Overview', pos: 'New sale', orders: 'Online orders', 'file-return': 'File a return', products: 'Products', receive: 'Receive stock', inventory: 'Inventory', count: 'Stock count', returns: 'Returns desk', customers: 'Customers', sales: 'Sales', reports: 'Reports', audit: 'Audit log', settings: 'Settings', staff: 'Staff accounts' };
+const TITLES = { dashboard: 'Overview', pos: 'New sale', orders: 'Online orders', 'file-return': 'File a return', products: 'Products', receive: 'Receive stock', inventory: 'Inventory', count: 'Stock count', returns: 'Returns desk', customers: 'Customers', sales: 'Sales', reports: 'Reports', audit: 'Audit log', settings: 'Settings', staff: 'Staff accounts', messages: 'Messages', banners: 'Home page banners', blog: 'Blog', catalogue: 'Categories and SKUs' };
 function badge(k) {
   let n = 0;
   if (k === 'orders') n = vals('orders').filter(o => ['paid', 'pod'].includes(o.status)).length;
   if (k === 'returns') n = vals('returns').filter(r => r.status === 'submitted' || (r.status === 'verified' && can('decide'))).length;
   if (k === 'sales') n = vals('sales').filter(s => s.status === 'conflict').length;
+  if (k === 'messages') n = Object.values(S.messages || {}).filter(m => m.status === 'new').length;
   return n ? `<span class="cnt">${n}</span>` : '';
 }
 function navHTML() {
@@ -677,11 +703,11 @@ async function completeSale() {
   items.filter(i => i.method === 'manual').forEach(i => audit.push(auditRec('Serial typed at sale', i.serial)));
   const r = await tx({ sales: [sale], units, customers: [c], audit }, items.map(i => ({ serial: i.serial, expect: ['in_stock'] })), { offline: true, saleId: id });
   resetPos(); render(); showReceipt(id);
-  if (r.queued) toast('Saved offline. It syncs when the connection returns.');
+  if (r.queued) toast('Saved offline. It syncs when the connection returns.'); else if (c.email) emailReceipt({ sale: id }, true);
 }
 function receiptHTML(s) {
   const c = cust(s.custId) || {}, store = set_('store');
-  return `<div class="receipt"><div class="c"><div class="logo"></div><b style="font-size:13px">${esc(store.name.toUpperCase())}</b><br>${esc(store.branch)}${store.address ? '<br>' + esc(store.address) : ''}${store.phone ? '<br>Tel ' + esc(store.phone) : ''}</div><hr>
+  return `<div class="receipt"><div class="c"><img class="logo" src="/logo-receipt.png" alt="PriceRight Tech Ltd"><b style="font-size:13px">${esc(store.name.toUpperCase())}</b><br>${esc(store.branch)}${store.address ? '<br>' + esc(store.address) : ''}${store.phone ? '<br>Tel ' + esc(store.phone) : ''}</div><hr>
   <div class="r"><span>Receipt</span><b>${esc(s.id)}</b></div><div class="r"><span>Date</span><span>${fmtT(s.t)}</span></div><div class="r"><span>Served by</span><span>${esc(s.staff)}</span></div>${s.orderNo ? `<div class="r"><span>Order</span><span>${esc(s.orderNo)}</span></div>` : ''}<hr>
   ${esc(c.name)}<br>${esc(c.phone)}${c.email ? '<br>' + esc(c.email) : ''}<hr>
   ${s.items.map(i => `<div>${esc(pname(i.pid))}</div><div class="r"><span>S/N ${esc(i.serial)}</span><span>${money(i.price)}</span></div><div>Warranty to ${fmtD(i.wEnd)}${i.replacementFor ? `, replaces ${esc(i.replacementFor)}` : ''}${i.returned ? ', RETURNED' : ''}</div>`).join('<div style="height:6px"></div>')}<hr>
@@ -745,10 +771,16 @@ function exportSales() {
 }
 
 /* ================= products ================= */
-const CATS = ['Laptops', 'Phones', 'CCTV & Security', 'Storage', 'Accessories'];
+const catList = () => [...new Set([...(set_('categories') || []), ...vals('products').map(p => p.cat)].filter(Boolean))];
+// Next SKU for a type: PREFIX-0001, one after the highest already used.
+function nextSku(prefix) {
+  prefix = String(prefix || '').toUpperCase(); if (!prefix) return '';
+  const re = new RegExp('^' + prefix.replace(/[^A-Z0-9]/g, '') + '-(\\d+)$'), max = vals('products').reduce((m, p) => { const x = re.exec(p.sku || ''); return x ? Math.max(m, Number(x[1])) : m }, 0);
+  return `${prefix}-${String(max + 1).padStart(4, '0')}`;
+}
 V.products = r => {
   if (r.q.get('new') && can('catalog')) { history.replaceState(null, '', '#/products'); setTimeout(() => editProduct(), 30) }
-  const F = UI.prodF, q = F.q.trim().toLowerCase(), cats = ['All', ...new Set([...CATS, ...vals('products').map(p => p.cat)].filter(Boolean))];
+  const F = UI.prodF, q = F.q.trim().toLowerCase(), cats = ['All', ...catList()];
   const list = vals('products').filter(p => (F.cat === 'All' || p.cat === F.cat) && (!q || [p.name, p.brand, p.sku].join(' ').toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name));
   return `<div class="pagehead"><p class="lede">Your catalogue. A product shows in the online store when it’s active and has stock.</p><span class="sp"></span>${can('catalog') ? `<button class="btn pri" onclick="editProduct()">${ic('plus', 16)}Add product</button>` : ''}</div>
   <section class="card"><div class="hd"><div class="row" style="flex:1"><input placeholder="Search name, brand or SKU" value="${esc(F.q)}" onchange="UI.prodF.q=this.value;render()" style="max-width:320px"><select style="max-width:200px" onchange="UI.prodF.cat=this.value;render()" aria-label="Category">${cats.map(c => `<option ${F.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div><span class="small muted">${list.length} product${list.length === 1 ? '' : 's'}</span></div>
@@ -756,14 +788,17 @@ V.products = r => {
 };
 function viewProductStock(id) { UI.invF = { q: prod(id).name, st: 'all' }; go('inventory') }
 function editProduct(id) {
-  const p = id ? prod(id) : { id: '', name: '', brand: '', cat: 'Laptops', sku: '', price: '', w: 12, r: 7, low: 2, phone: false, active: true, desc: '', img: '' };
+  const cl = catList(), types = set_('sku_types') || [];
+  const p = id ? prod(id) : { id: '', name: '', brand: '', cat: cl[0] || '', sku: '', skuType: '', price: '', w: 12, r: 7, low: 2, phone: false, active: true, desc: '', img: '', featured: false, was: '' };
   UI.editImg = p.img || '';
   modal(id ? 'Edit product' : 'Add product', `<div class="fgrid">
   <div class="full"><label class="f" for="epN" style="margin-top:0">Product name</label><input id="epN" value="${esc(p.name)}" placeholder="e.g. HP EliteBook 840 G8, Core i7, 16GB, 512GB" autofocus></div>
   <div><label class="f" for="epB">Brand</label><input id="epB" value="${esc(p.brand)}"></div>
-  <div><label class="f" for="epC">Category</label><input id="epC" list="catList" value="${esc(p.cat)}"><datalist id="catList">${[...new Set([...CATS, ...vals('products').map(x => x.cat)])].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
-  <div><label class="f" for="epS">SKU or model</label><input id="epS" class="mono" value="${esc(p.sku)}"></div>
+  <div><label class="f" for="epC">Category</label><select id="epC">${cl.map(c => `<option ${c === p.cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><p class="hint">Manage the list in <a href="#/catalogue" onclick="closeModal()">Categories and SKUs</a>.</p></div>
+  <div><label class="f" for="epT">SKU type</label><select id="epT" onchange="const t=this.selectedOptions[0];$('#epS').value=t.dataset.p?nextSku(t.dataset.p):''">${id && p.sku && !p.skuType ? `<option value="" data-p="">Keep current SKU</option>` : ''}${types.map(t => `<option value="${esc(t.prefix)}" data-p="${esc(t.prefix)}" ${t.prefix === p.skuType ? 'selected' : ''}>${esc(t.name)} (${esc(t.prefix)})</option>`).join('')}</select></div>
+  <div><label class="f" for="epS">SKU</label><input id="epS" class="mono" value="${esc(p.sku || (types[0] ? nextSku(types[0].prefix) : ''))}" readonly style="background:var(--paper)"><p class="hint">Made automatically from the SKU type.</p></div>
   <div><label class="f" for="epP">Selling price (GH₵)</label><input id="epP" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(p.price)}"></div>
+  <div><label class="f" for="epO">Old price (optional)</label><input id="epO" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(p.was || '')}"><p class="hint">Shown crossed out in the store when higher than the selling price.</p></div>
   ${can('cost') ? `<div><label class="f" for="epK">Cost price (GH₵)</label><input id="epK" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(id ? S.costs['p:' + id] ?? '' : '')}"><p class="hint">Hidden from shop assistants.</p></div>` : ''}
   <div><label class="f" for="epL">Reorder level</label><input id="epL" type="number" min="0" value="${esc(p.low ?? 2)}"><p class="hint">Flag as running low at this many.</p></div>
   <div><label class="f" for="epW">Warranty (months)</label><input id="epW" type="number" min="0" value="${esc(p.w)}"></div>
@@ -771,7 +806,8 @@ function editProduct(id) {
   <div class="full"><label class="f" for="epD">Description and specs</label><textarea id="epD" rows="5" placeholder="One spec per line, e.g.&#10;Intel Core i7, 11th gen&#10;16GB RAM, 512GB SSD">${esc(p.desc)}</textarea></div>
   <div class="full"><label class="f">Photo</label><div class="row"><div class="thumb" id="epImgPrev" style="width:96px;height:72px">${UI.editImg ? `<img src="${esc(UI.editImg)}" alt="">` : art(p, 64, 44)}</div><input type="file" accept="image/*" onchange="pickProductImg(this)" style="flex:1"></div></div>
   <div class="full"><label class="chk"><input id="epPh" type="checkbox" ${p.phone ? 'checked' : ''}><span>This is a phone. Require the IMEI for every unit.</span></label>
-  <label class="chk"><input id="epA" type="checkbox" ${p.active !== false ? 'checked' : ''}><span>Show in the online store</span></label></div></div>`,
+  <label class="chk"><input id="epA" type="checkbox" ${p.active !== false ? 'checked' : ''}><span>Show in the online store</span></label>
+  <label class="chk"><input id="epF" type="checkbox" ${p.featured ? 'checked' : ''}><span>Feature on the store’s home page</span></label></div></div>`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="act(this,()=>saveProduct('${id || ''}'))">${id ? 'Save changes' : 'Add product'}</button>`, { wide: true });
 }
 async function pickProductImg(inp) {
@@ -782,7 +818,9 @@ async function saveProduct(id) {
   const name = val('epN').trim(), price = Number(val('epP'));
   if (!name) throw new Error('Add a product name.'); if (!(price > 0)) throw new Error('Add a selling price.');
   const old = id ? prod(id) : {}; const pid = id || 'P' + rnd(8);
-  const p = { ...old, id: pid, name, brand: val('epB').trim(), cat: val('epC').trim() || 'Other', sku: val('epS').trim(), price, low: Number(val('epL')) || 0, w: Number(val('epW')) || 0, r: Number(val('epR')) || 0, desc: val('epD').trim(), img: UI.editImg || '', phone: $('#epPh').checked, active: $('#epA').checked, updated: Date.now() };
+  const ty = val('epT'), sku = id && old.skuType === ty && old.sku ? old.sku : (ty ? nextSku(ty) : val('epS').trim()), was = Number(val('epO')) || 0;
+  if (sku && vals('products').some(x => x.id !== pid && x.sku === sku)) throw new Error(`SKU ${sku} is already used. Pick the SKU type again to get a new one.`);
+  const p = { ...old, id: pid, name, brand: val('epB').trim(), cat: val('epC').trim() || 'Other', sku, skuType: ty || old.skuType || '', was: was > price ? was : 0, featured: $('#epF').checked, price, low: Number(val('epL')) || 0, w: Number(val('epW')) || 0, r: Number(val('epR')) || 0, desc: val('epD').trim(), img: UI.editImg || '', phone: $('#epPh').checked, active: $('#epA').checked, updated: Date.now() };
   const ch = { products: [p], audit: [auditRec(id ? 'Product updated' : 'Product added', name)] };
   if (can('cost') && val('epK') !== '') ch.costs = [{ key: 'p:' + pid, cost: Number(val('epK')) }];
   await tx(ch); closeModal(); toast(id ? 'Product saved' : 'Product added', 'ok'); render();
@@ -1015,7 +1053,7 @@ function fulfil(id) {
       try {
         await tx({ sales: [sale], orders: [{ ...o, status: 'packed', serials: got, saleId: sid }], units: got.map(s => { const x = S.units[s]; return { ...x, status: 'sold', saleId: sid, hist: [...x.hist, { t, type: `Sold online, ${id} / ${sid}`, by: meName() }] } }), audit: [auditRec('Online order packed', `${id}, receipt ${sid}`)] }, got.map(s => ({ serial: s, expect: ['in_stock'] })));
       } catch (e) { got.length = 0; o.items.forEach(i => left[i.pid] = Number(i.qty)); throw e }
-      setTimeout(closeModal, 600); return { ok: true, msg: 'All items scanned. Order packed.' };
+      setTimeout(closeModal, 600); emailReceipt({ sale: sid }, true); return { ok: true, msg: 'All items scanned. Order packed.' };
     }
   });
 }
@@ -1078,17 +1116,106 @@ V.audit = () => {
 V.settings = () => {
   const s = set_('store'), areas = set_('areas'), riders = set_('riders');
   return `<div class="cols c2"><section class="card"><div class="hd"><h2>Store details</h2></div><div class="bd"><p class="small muted" style="margin-bottom:4px">Shown on receipts and in the online store.</p>
-  <div class="fgrid"><div class="full"><label class="f" for="stN">Business name</label><input id="stN" value="${esc(s.name)}"></div><div><label class="f" for="stB">Branch</label><input id="stB" value="${esc(s.branch)}"></div><div><label class="f" for="stA">Address</label><input id="stA" value="${esc(s.address)}"></div><div><label class="f" for="stP">Phone</label><input id="stP" value="${esc(s.phone)}"></div><div><label class="f" for="stW">WhatsApp number</label><input id="stW" value="${esc(s.whatsapp)}" placeholder="e.g. 0244123456"></div><div class="full"><label class="f" for="stE">Email</label><input id="stE" value="${esc(s.email)}"></div><div class="full"><label class="f" for="stF">Receipt footer</label><textarea id="stF" rows="2">${esc(s.receiptFooter)}</textarea></div></div></div>
+  <div class="fgrid"><div class="full"><label class="f" for="stN">Business name</label><input id="stN" value="${esc(s.name)}"></div><div><label class="f" for="stB">Branch</label><input id="stB" value="${esc(s.branch)}"></div><div><label class="f" for="stA">Address</label><input id="stA" value="${esc(s.address)}"></div><div><label class="f" for="stP">Phone</label><input id="stP" value="${esc(s.phone)}"></div><div><label class="f" for="stW">WhatsApp number</label><input id="stW" value="${esc(s.whatsapp)}" placeholder="e.g. 0244123456"></div><div class="full"><label class="f" for="stE">Email</label><input id="stE" value="${esc(s.email)}"></div><div class="full"><label class="f" for="stH">Opening hours</label><input id="stH" value="${esc(s.hours || '')}" placeholder="e.g. Monday to Saturday, 8:30am to 6:30pm"></div><div class="full"><label class="f" for="stM">Google Maps link (optional)</label><input id="stM" value="${esc(s.map || '')}" placeholder="Paste the Share link from Google Maps"><p class="hint">Used for “Get directions” on the Contact page.</p></div><div class="full"><label class="f" for="stF">Receipt footer</label><textarea id="stF" rows="2">${esc(s.receiptFooter)}</textarea></div></div></div>
   <div class="ft"><button class="btn pri" onclick="act(this,saveStore)">Save details</button></div></section>
   <div><section class="card"><div class="hd"><h2>Delivery areas and fees</h2></div><div class="bd" id="areaRows">${areas.map((a, i) => areaRow(a, i)).join('')}<button class="btn sm" onclick="document.getElementById('areaRows').insertAdjacentHTML('beforeend',areaRow({name:'',fee:''},Date.now()))">${ic('plus', 15)}Add area</button></div><div class="ft"><button class="btn pri" onclick="act(this,saveAreas)">Save areas</button></div></section>
   <section class="card"><div class="hd"><h2>Riders</h2></div>${riders.length ? `<div class="list">${riders.map((r, i) => `<div><span class="sp">${esc(r)}</span><button class="btn ghost sm" onclick="act(this,()=>saveRiders(set_('riders').filter((_,k)=>k!==${i})))" aria-label="Remove">${ic('trash', 15)}</button></div>`).join('')}</div>` : ''}<div class="bd" style="${riders.length ? 'border-top:1px solid var(--line-2)' : ''}"><div class="row"><input id="newRider" placeholder="Rider’s name and phone"><button class="btn" onclick="act(this,()=>{const v=val('newRider').trim();if(!v)throw new Error('Enter a name.');return saveRiders([...set_('riders'),v])})">Add rider</button></div></div></section>
   <section class="card"><div class="hd"><h2>System</h2></div><div class="bd"><dl class="kv"><div><dt>Database</dt><dd>${REMOTE ? 'Connected to Supabase' : 'Not connected. Data is saved on this device only.'}</dd></div><div><dt>Online payments</dt><dd>${CFG.paystackPublicKey ? 'Paystack enabled' : 'Pay on delivery only'}</dd></div></dl><div class="row mt"><button class="btn" onclick="backup()">${ic('download', 16)}Download backup</button></div></div></section></div></div>`;
 };
 const areaRow = (a, i) => `<div class="row" style="margin-bottom:8px" data-area><input value="${esc(a.name)}" placeholder="Area" aria-label="Area"><input type="number" min="0" value="${esc(a.fee)}" placeholder="Fee" aria-label="Fee in cedis" style="max-width:110px;flex:0 0 110px"><button class="btn ghost sm" onclick="this.parentElement.remove()" aria-label="Remove">${ic('trash', 15)}</button></div>`;
-async function saveStore() { const s = { name: val('stN').trim() || 'PriceRight Tech Ltd', branch: val('stB').trim(), address: val('stA').trim(), phone: val('stP').trim(), whatsapp: val('stW').trim(), email: val('stE').trim(), receiptFooter: val('stF').trim() }; await tx({ settings: [{ id: 'store', data: s }], audit: [auditRec('Store details updated', '')] }); toast('Store details saved', 'ok') }
+async function saveStore() { const s = { name: val('stN').trim() || 'PriceRight Tech Ltd', branch: val('stB').trim(), address: val('stA').trim(), phone: val('stP').trim(), whatsapp: val('stW').trim(), email: val('stE').trim(), receiptFooter: val('stF').trim(), hours: val('stH').trim(), map: val('stM').trim() }; await tx({ settings: [{ id: 'store', data: s }], audit: [auditRec('Store details updated', '')] }); toast('Store details saved', 'ok') }
 async function saveAreas() { const a = [...document.querySelectorAll('[data-area]')].map(r => { const [n, f] = r.querySelectorAll('input'); return { name: n.value.trim(), fee: Number(f.value) || 0 } }).filter(a => a.name); await tx({ settings: [{ id: 'areas', data: a }], audit: [auditRec('Delivery areas updated', a.map(x => `${x.name} ${x.fee}`).join(', '))] }); toast('Delivery areas saved', 'ok'); render() }
 async function saveRiders(list) { await tx({ settings: [{ id: 'riders', data: list }], audit: [auditRec('Riders updated', list.join(', '))] }); render() }
 function backup() { const d = {}; COLL.forEach(c => d[c] = S[c]); if (can('cost')) d.costs = S.costs; download(`top-league-backup-${ymd()}.json`, JSON.stringify(d, null, 1), 'application/json') }
+
+/* ================= website: categories and SKUs ================= */
+V.catalogue = () => {
+  const cats = set_('categories') || [], types = set_('sku_types') || [];
+  const used = c => vals('products').filter(p => p.cat === c).length, usedT = t => vals('products').filter(p => p.skuType === t).length;
+  return `<div class="pagehead"><p class="lede">Categories fill the drop-down when you add a product and group products in the online store. SKU types decide how SKUs are numbered, for example LAP-0001, LAP-0002.</p></div>
+  <div class="cols c2"><section class="card"><div class="hd"><h2>Product categories</h2><span class="sp"></span><span class="small muted">${cats.length}</span></div>
+  <div class="list" id="catRows">${cats.map((c, i) => `<div><span class="sp">${esc(c)}</span><span class="small muted">${used(c)} product${used(c) === 1 ? '' : 's'}</span><button class="btn ghost sm" onclick="moveCat(${i},-1)" aria-label="Move up" ${i ? '' : 'disabled'}>${ic('back', 14)}</button><button class="btn ghost sm" onclick="act(this,()=>removeCat(${i}))" aria-label="Remove ${esc(c)}">${ic('trash', 15)}</button></div>`).join('') || `<div class="muted">No categories yet.</div>`}</div>
+  <div class="bd" style="border-top:1px solid var(--line-2)"><div class="row"><input id="newCat" placeholder="New category, e.g. Wardrobes" onkeydown="if(event.key==='Enter')act(null,addCat)"><button class="btn pri" onclick="act(this,addCat)">${ic('plus', 15)}Add</button></div></div></section>
+  <section class="card"><div class="hd"><h2>SKU types</h2><span class="sp"></span><span class="small muted">${types.length}</span></div>
+  ${types.length ? `<div class="tw"><table><tr><th>Type</th><th>Prefix</th><th>Next SKU</th><th class="num">Products</th><th></th></tr>${types.map((t, i) => `<tr><td class="strong">${esc(t.name)}</td><td class="mono">${esc(t.prefix)}</td><td class="mono">${esc(nextSku(t.prefix))}</td><td class="num">${usedT(t.prefix)}</td><td class="num"><button class="btn ghost sm" onclick="act(this,()=>removeSkuType(${i}))" aria-label="Remove ${esc(t.name)}">${ic('trash', 15)}</button></td></tr>`).join('')}</table></div>` : `<div class="bd muted">No SKU types yet.</div>`}
+  <div class="bd" style="border-top:1px solid var(--line-2)"><div class="fgrid"><div><label class="f" for="ntN" style="margin-top:0">Type name</label><input id="ntN" placeholder="e.g. Wardrobes" oninput="const p=$('#ntP');if(!p.dataset.touched)p.value=this.value.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()"></div><div><label class="f" for="ntP" style="margin-top:0">Prefix</label><input id="ntP" class="mono" maxlength="6" placeholder="WRD" oninput="this.dataset.touched=1;this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"></div></div>
+  <button class="btn pri" style="margin-top:12px" onclick="act(this,addSkuType)">${ic('plus', 15)}Add SKU type</button></div></section></div>`;
+};
+async function saveSetting(key, data, what) { await tx({ settings: [{ id: key, data }], audit: [auditRec(what, '')] }); render() }
+async function addCat() { const v = val('newCat').trim(); if (!v) throw new Error('Type a category name.'); const c = set_('categories') || []; if (c.some(x => x.toLowerCase() === v.toLowerCase())) throw new Error('That category already exists.'); await saveSetting('categories', [...c, v], 'Category added: ' + v); toast('Category added', 'ok') }
+async function removeCat(i) { const c = [...set_('categories')], n = vals('products').filter(p => p.cat === c[i]).length; if (n && !confirm(`${n} product(s) use “${c[i]}”. They keep it, but it won’t be offered for new products. Remove it?`)) return; const [x] = c.splice(i, 1); await saveSetting('categories', c, 'Category removed: ' + x) }
+function moveCat(i, d) { const c = [...set_('categories')]; [c[i + d], c[i]] = [c[i], c[i + d]]; act(null, () => saveSetting('categories', c, 'Categories reordered')) }
+async function addSkuType() {
+  const name = val('ntN').trim(), prefix = val('ntP').trim().toUpperCase(), t = set_('sku_types') || [];
+  if (!name) throw new Error('Type a name for the SKU type.'); if (!/^[A-Z0-9]{2,6}$/.test(prefix)) throw new Error('Use a prefix of 2 to 6 letters or numbers.');
+  if (t.some(x => x.prefix === prefix)) throw new Error(`The prefix ${prefix} is already used.`);
+  await saveSetting('sku_types', [...t, { name, prefix }], `SKU type added: ${name} (${prefix})`); toast('SKU type added', 'ok');
+}
+async function removeSkuType(i) { const t = [...set_('sku_types')]; if (!confirm(`Remove the SKU type ${t[i].name}? Existing SKUs stay as they are.`)) return; const [x] = t.splice(i, 1); await saveSetting('sku_types', t, 'SKU type removed: ' + x.name) }
+
+/* ================= website: banners ================= */
+const LINKS = () => [['#/shop', 'All products'], ...catList().map(c => ['#/shop?cat=' + encodeURIComponent(c), c]), ['#/blog', 'Blog'], ['#/contact', 'Contact'], ['#/track', 'Track an order']];
+V.banners = () => {
+  const B = UI.ban = UI.ban || JSON.parse(JSON.stringify(set_('banners') || []));
+  return `<div class="pagehead"><p class="lede">The slides at the top of the online store. Use wide photos, about 1600 by 640 pixels. Slides change every few seconds.</p><span class="sp"></span><button class="btn" onclick="UI.ban.push({img:'',title:'',text:'',btn:'Shop now',link:'#/shop',on:true});render()">${ic('plus', 16)}Add slide</button><button class="btn pri" onclick="act(this,saveBanners)">Save banners</button></div>
+  ${B.length ? B.map((b, i) => `<section class="card banedit"><div class="bd"><div class="banprev" style="${b.img ? `background-image:url('${esc(b.img)}')` : ''}">${b.img ? '' : `<span>${ic('image', 28)}<br>No photo yet</span>`}<label class="btn sm">${ic('camera', 15)}${b.img ? 'Change photo' : 'Add photo'}<input type="file" accept="image/*" hidden onchange="act(null,()=>bannerImg(${i},this))"></label></div>
+  <div class="fgrid"><div class="full"><label class="f" style="margin-top:0">Headline</label><input value="${esc(b.title)}" oninput="UI.ban[${i}].title=this.value" placeholder="e.g. Back-to-school laptops"></div>
+  <div class="full"><label class="f">Short line under the headline</label><input value="${esc(b.text)}" oninput="UI.ban[${i}].text=this.value" placeholder="e.g. Core i5 and i7 machines with a 12-month warranty"></div>
+  <div><label class="f">Button text</label><input value="${esc(b.btn)}" oninput="UI.ban[${i}].btn=this.value"></div>
+  <div><label class="f">Button opens</label><select onchange="UI.ban[${i}].link=this.value">${LINKS().map(([v, l]) => `<option value="${esc(v)}" ${v === b.link ? 'selected' : ''}>${esc(l)}</option>`).join('')}${LINKS().some(l => l[0] === b.link) ? '' : `<option selected value="${esc(b.link)}">${esc(b.link)}</option>`}</select></div></div>
+  <div class="row mt"><label class="chk" style="margin:0"><input type="checkbox" ${b.on !== false ? 'checked' : ''} onchange="UI.ban[${i}].on=this.checked"><span>Show this slide</span></label><span class="sp"></span><button class="btn ghost sm" ${i ? '' : 'disabled'} onclick="const a=UI.ban;[a[${i - 1}],a[${i}]]=[a[${i}],a[${i - 1}]];render()">Move up</button><button class="btn ghost sm" onclick="UI.ban.splice(${i},1);render()">${ic('trash', 15)}Remove</button></div></div></section>`).join('')
+    : `<section class="card">${emptyBox('image', 'No banners yet', 'Until you add one, the store shows a simple welcome slide.', `<button class="btn pri" onclick="UI.ban.push({img:'',title:'',text:'',btn:'Shop now',link:'#/shop',on:true});render()">${ic('plus', 16)}Add slide</button>`)}</section>`}`;
+};
+async function bannerImg(i, inp) { const f = inp.files[0]; if (!f) return; toast('Uploading photo…'); UI.ban[i].img = await uploadImage(f, 'product-images', 1800); render() }
+async function saveBanners() { const b = UI.ban.filter(x => x.title.trim() || x.img); await saveSetting('banners', b, `Banners updated (${b.length})`); UI.ban = null; toast('Banners saved', 'ok') }
+
+/* ================= website: blog ================= */
+V.blog = () => {
+  const pub = (set_('blog') || []).map(p => ({ ...p, live: true })), dr = (set_('blog_drafts') || []).map(p => ({ ...p, live: false }));
+  const all = [...dr, ...pub].sort((a, b) => b.t - a.t);
+  return `<div class="pagehead"><p class="lede">Tech news, buying guides and shop updates. Published posts appear on the store’s Blog page and home page.</p><span class="sp"></span><button class="btn pri" onclick="editPost()">${ic('plus', 16)}New post</button></div>
+  <section class="card">${all.length ? `<div class="list">${all.map(p => `<div class="click" style="cursor:pointer" onclick="editPost('${p.id}')"><div class="thumb" style="width:72px;height:48px">${p.cover ? `<img src="${esc(p.cover)}" alt="">` : ic('doc', 20)}</div><span class="sp"><span class="strong">${esc(p.title)}</span><div class="small muted">${fmtD(p.t)}${p.tag ? ', ' + esc(p.tag) : ''}</div></span>${p.live ? st('Published', 'g') : st('Draft', 'm')}</div>`).join('')}</div>` : emptyBox('doc', 'No posts yet', 'Write about new arrivals, buying tips or tech news.', `<button class="btn pri" onclick="editPost()">${ic('plus', 16)}New post</button>`)}</section>`;
+};
+const findPost = id => [...(set_('blog') || []).map(p => ({ ...p, live: true })), ...(set_('blog_drafts') || []).map(p => ({ ...p, live: false }))].find(p => p.id === id);
+function editPost(id) {
+  const p = id ? findPost(id) : { id: '', title: '', tag: 'Tech news', excerpt: '', body: '', cover: '', live: false, t: Date.now() };
+  UI.postImg = p.cover || '';
+  modal(id ? 'Edit post' : 'New post', `<label class="f" for="bpT" style="margin-top:0">Title</label><input id="bpT" value="${esc(p.title)}" autofocus>
+  <div class="fgrid"><div><label class="f" for="bpG">Topic</label><input id="bpG" list="bpTags" value="${esc(p.tag || '')}"><datalist id="bpTags"><option value="Tech news"><option value="Buying guide"><option value="How to"><option value="Shop news"><option value="Security tips"></datalist></div>
+  <div><label class="f">Cover photo</label><div class="row"><div class="thumb" id="bpPrev" style="width:72px;height:48px">${p.cover ? `<img src="${esc(p.cover)}" alt="">` : ic('image', 18)}</div><input type="file" accept="image/*" style="flex:1" onchange="act(null,()=>postImg(this))"></div></div></div>
+  <label class="f" for="bpX">Summary</label><textarea id="bpX" rows="2" placeholder="One or two sentences shown on the blog list">${esc(p.excerpt || '')}</textarea>
+  <label class="f" for="bpB">Post</label><textarea id="bpB" rows="12" placeholder="Write the post. Leave a blank line between paragraphs.&#10;## A line starting with ## becomes a heading&#10;- Lines starting with - become a list&#10;**Bold text** between double stars">${esc(p.body || '')}</textarea>
+  <label class="chk"><input id="bpL" type="checkbox" ${p.live ? 'checked' : ''}><span>Published on the store</span></label>`,
+    `${id ? `<button class="btn danger" onclick="act(this,()=>deletePost('${id}'))">Delete</button>` : ''}<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" onclick="act(this,()=>savePost('${id || ''}'))">${id ? 'Save post' : 'Save post'}</button>`, { wide: true });
+}
+async function postImg(inp) { const f = inp.files[0]; if (!f) return; $('#bpPrev').innerHTML = '<span class="spin"></span>'; UI.postImg = await uploadImage(f, 'product-images', 1600); $('#bpPrev').innerHTML = `<img src="${esc(UI.postImg)}" alt="">` }
+async function savePost(id) {
+  const title = val('bpT').trim(), body = val('bpB').trim(); if (!title) throw new Error('Add a title.'); if (body.length < 20) throw new Error('Write the post before saving.');
+  const old = id ? findPost(id) : null, live = $('#bpL').checked;
+  const post = { id: id || slug(title) + '-' + rnd(4).toLowerCase(), title, tag: val('bpG').trim(), excerpt: val('bpX').trim() || body.replace(/[#*\-]/g, '').slice(0, 180), body, cover: UI.postImg || '', t: old ? old.t : Date.now(), by: meName() };
+  const pub = (set_('blog') || []).filter(p => p.id !== post.id), dr = (set_('blog_drafts') || []).filter(p => p.id !== post.id);
+  if (live) pub.unshift(post); else dr.unshift(post);
+  await tx({ settings: [{ id: 'blog', data: pub.sort((a, b) => b.t - a.t) }, { id: 'blog_drafts', data: dr }], audit: [auditRec(live ? 'Blog post published' : 'Blog draft saved', title)] });
+  closeModal(); toast(live ? 'Post published' : 'Draft saved', 'ok'); render();
+}
+async function deletePost(id) { if (!confirm('Delete this post?')) return; await tx({ settings: [{ id: 'blog', data: (set_('blog') || []).filter(p => p.id !== id) }, { id: 'blog_drafts', data: (set_('blog_drafts') || []).filter(p => p.id !== id) }], audit: [auditRec('Blog post deleted', id)] }); closeModal(); render() }
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'post';
+
+/* ================= website: messages ================= */
+V.messages = () => {
+  if (!REMOTE) S.messages = ls.get('tle-messages', {});
+  const tab = UI.msgTab || 'new', all = Object.values(S.messages || {}).sort((a, b) => b.t - a.t), list = all.filter(m => (m.status || 'new') === tab);
+  return `<div class="pagehead"><p class="lede">Messages sent from the Contact page of the online store.</p></div>
+  <div class="seg" style="margin-bottom:14px"><button class="${tab === 'new' ? 'on' : ''}" onclick="UI.msgTab='new';render()">To answer (${all.filter(m => (m.status || 'new') === 'new').length})</button><button class="${tab === 'done' ? 'on' : ''}" onclick="UI.msgTab='done';render()">Answered</button></div>
+  ${list.length ? list.map(m => { const ph = normPhone(m.phone); return `<section class="card"><div class="hd"><div><span class="strong">${esc(m.name)}</span><div class="small muted">${fmtT(m.t)}, ${esc(m.topic || 'General')}</div></div><span class="sp"></span>${tab === 'new' ? st('New', 'b') : st('Answered', 'g')}</div><div class="bd"><p style="white-space:pre-wrap">${esc(m.message)}</p>
+  <div class="row mt">${ph.length >= 9 ? `<a class="btn sm" href="tel:${esc(m.phone)}">${ic('phone', 14)}${esc(m.phone)}</a><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/233${ph.slice(1)}">${ic('msg', 14)}WhatsApp</a>` : ''}${m.email ? `<a class="btn sm" href="mailto:${esc(m.email)}?subject=${encodeURIComponent('Re: your message to ' + set_('store').name)}">${ic('mail', 14)}${esc(m.email)}</a>` : ''}<span class="sp"></span><button class="btn ${tab === 'new' ? 'pri' : ''} sm" onclick="act(this,()=>msgStatus('${esc(m.id)}','${tab === 'new' ? 'done' : 'new'}'))">${tab === 'new' ? `${ic('check', 14)}Mark answered` : 'Move back to answer'}</button></div></div></section>` }).join('')
+    : `<section class="card">${emptyBox('mail', tab === 'new' ? 'Nothing to answer' : 'No answered messages', tab === 'new' ? 'New messages from the store’s Contact page appear here.' : 'Messages you mark as answered move here.')}</section>`}`;
+};
+async function msgStatus(id, s) {
+  if (REMOTE) { const { error } = await sb.rpc('message_status', { k: id, s }); if (error) throw new Error(friendlyErr(error.message)) }
+  else { const all = ls.get('tle-messages', {}); all[id].status = s; ls.set('tle-messages', all) }
+  S.messages[id] = { ...S.messages[id], status: s }; render();
+}
 
 /* ================= staff accounts ================= */
 V.staff = () => {
@@ -1117,76 +1244,178 @@ async function removeStaff(email) { if (!confirm(`Remove ${email}’s access?`))
 /* ================= public store ================= */
 const cartGet = () => ls.get('tle-cart', []), cartSet = c => { ls.set('tle-cart', c); renderCartBadge() };
 const cartCount = () => cartGet().reduce((a, i) => a + i.qty, 0);
-function renderCartBadge() { const b = $('#cartN'); if (b) { const n = cartCount(); b.textContent = n; b.classList.toggle('hide', !n) } }
-const SNAV = [['', 'Shop'], ['track', 'Track an order'], ['returns', 'Returns'], ['warranty', 'Warranty check']];
-function renderStore() {
-  const r = route(), page = r.parts[0] || '';
-  const views = { '': SV.home, p: SV.product, cart: SV.cart, done: SV.done, track: SV.track, returns: SV.returns, warranty: SV.warranty };
-  const body = (views[page] || SV.home)(r);
-  const store = set_('store'), wa = normPhone(store.whatsapp);
-  document.title = page === 'p' && prod(r.parts[1]) ? prod(r.parts[1]).name + ' · PriceRight Tech Ltd' : 'PriceRight Tech Ltd';
-  $('#app').innerHTML = `<header class="shead"><div class="in"><a href="#/" class="lockup" aria-label="PriceRight Tech Ltd home"><span class="mk ring"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></a>
-  <nav class="snav">${SNAV.map(([k, l]) => `<a href="#/${k}" class="${page === k ? 'act' : ''}">${l}</a>`).join('')}</nav><span style="flex:1"></span>
-  <div class="search" role="search">${ic('search', 16)}<input placeholder="Search products" value="${esc(r.q.get('q') || '')}" onkeydown="if(event.key==='Enter')go('?q='+encodeURIComponent(this.value))" aria-label="Search products"></div>
-  <a class="btn cartbtn" href="#/cart">${ic('cart', 17)}<span>Cart</span><span class="n ${cartCount() ? '' : 'hide'}" id="cartN">${cartCount()}</span></a>
-  <button class="drawer-btn" onclick="$('#drawer').classList.add('open')" aria-label="Menu">${ic('menu', 22)}</button></div></header>
-  <div class="drawer" id="drawer"><div class="scr" onclick="$('#drawer').classList.remove('open')"></div><div class="pane"><div class="row between" style="margin-bottom:10px"><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><button class="btn ghost sm" onclick="$('#drawer').classList.remove('open')" aria-label="Close">${ic('x', 18)}</button></div>
-  <div class="search" style="width:100%;margin-bottom:8px">${ic('search', 16)}<input placeholder="Search products" onkeydown="if(event.key==='Enter'){$('#drawer').classList.remove('open');go('?q='+encodeURIComponent(this.value))}"></div>
-  ${SNAV.map(([k, l]) => `<a href="#/${k}" onclick="$('#drawer').classList.remove('open')">${l}</a>`).join('')}<a href="#/cart" onclick="$('#drawer').classList.remove('open')">Cart (${cartCount()})</a>${canInstall() ? `<a href="#" onclick="event.preventDefault();installApp()">Install the app</a>` : ''}</div></div>
-  <main class="store">${body}</main>
-  <footer class="sfoot"><div class="in"><div><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><p style="margin-top:14px;max-width:36ch">Laptops, phones, CCTV and storage. Every device sold with its serial number on the receipt.</p></div>
-  <div><h4>Help</h4><a href="#/track">Track an order</a><a href="#/returns">Return an item</a><a href="#/warranty">Check a warranty</a>${canInstall() ? `<button class="lnk" onclick="installApp()">Install the app</button>` : ''}</div>
-  <div><h4>Visit or call</h4>${store.address ? `<span style="display:block;padding:3px 0">${esc(store.branch ? store.branch + ', ' : '')}${esc(store.address)}</span>` : ''}${store.phone ? `<a href="tel:${esc(store.phone)}">${esc(store.phone)}</a>` : ''}${wa.length >= 9 ? `<a href="https://wa.me/233${wa.slice(1)}" target="_blank" rel="noopener">WhatsApp us</a>` : ''}${store.email ? `<a href="mailto:${esc(store.email)}">${esc(store.email)}</a>` : ''}</div></div>
-  <div class="base"><span>© ${new Date().getFullYear()} ${esc(store.name)}</span><a href="/staff" style="color:inherit">Staff sign in</a></div></footer>`;
-}
+function renderCartBadge() { document.querySelectorAll('.cartN').forEach(b => { const n = cartCount(); b.textContent = n; b.classList.toggle('hide', !n); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump') }) }
 const SV = {};
 const shopProducts = () => vals('products').filter(p => p.active !== false);
 const av = id => (UI.avail || {})[id] ?? 0;
-SV.home = r => {
-  const q = (r.q.get('q') || '').trim().toLowerCase(), cat = UI.scat || 'All', sort = UI.ssort || 'feat';
-  const all = shopProducts(), cats = ['All', ...new Set(all.map(p => p.cat))];
-  let list = all.filter(p => (cat === 'All' || p.cat === cat) && (!q || [p.name, p.brand, p.cat].join(' ').toLowerCase().includes(q)));
-  list.sort(sort === 'lo' ? (a, b) => a.price - b.price : sort === 'hi' ? (a, b) => b.price - a.price : (a, b) => (av(b.id) > 0) - (av(a.id) > 0) || a.name.localeCompare(b.name));
-  return `${q ? '' : `<section class="hero"><div><h1>Laptops, phones and CCTV, each sold with its serial on the receipt.</h1><p>Every device is scanned in and scanned out, so your warranty and returns are tied to the exact unit you bought.</p><div class="row"><a class="btn pri lg" href="#products" onclick="event.preventDefault();document.getElementById('products').scrollIntoView({behavior:'smooth'})">Shop products</a><a class="btn lg" href="#/warranty">${ic('shield', 17)}Check a warranty</a></div></div>
-  <div class="proof" aria-hidden="true"><div class="top2"><span>Your receipt</span><span>${fmtD(Date.now())}</span></div><div class="item"><div class="art">${art({ cat: 'Laptops' }, 64, 44)}</div><div><div class="strong">Each item you buy</div><div style="margin-top:6px">${sn('ITS-SERIAL', 'ok')}</div></div></div><div class="foot"><span style="display:flex;gap:6px;align-items:center;color:var(--green)">${ic('shield', 15)}Verified at sale</span><span>Warranty date printed</span></div></div></section>`}
-  <div id="products" class="cats">${q ? `<h2 style="margin-right:12px">Results for “${esc(q)}”</h2><a class="btn ghost sm" href="#/">Clear</a>` : cats.map(c => `<button class="${c === cat ? 'on' : ''}" onclick="UI.scat='${esc(c)}';render()">${esc(c)}</button>`).join('')}<select onchange="UI.ssort=this.value;render()" aria-label="Sort"><option value="feat" ${sort === 'feat' ? 'selected' : ''}>In stock first</option><option value="lo" ${sort === 'lo' ? 'selected' : ''}>Price: low to high</option><option value="hi" ${sort === 'hi' ? 'selected' : ''}>Price: high to low</option></select></div>
-  ${list.length ? `<div class="pgrid">${list.map(p => { const a = av(p.id); return `<a class="pcard" href="#/p/${p.id}"><div class="pic">${pic(p, 140, 94)}</div><div class="meta"><span class="brandn">${esc(p.brand || p.cat)}</span><span class="nm">${esc(p.name)}</span><span class="wr">${ic('shield', 14)}${p.w ?? 12}-month warranty</span><div class="buy"><span class="price">${money(p.price)}</span>${a ? `<span class="st g">In stock</span>` : `<span class="st m">Out of stock</span>`}</div></div></a>` }).join('')}</div>` : `<div class="card">${emptyBox('box', all.length ? 'No products match' : 'Products are on the way', all.length ? 'Try a different search or category.' : 'Our online catalogue is being set up. Visit or call the shop in the meantime.')}</div>`}
-  ${q ? '' : `<section class="promise"><div>${ic('scan', 20)}<span><b>Scanned in, scanned out</b><p>Your receipt lists the serial of every item you buy.</p></span></div><div>${ic('undo', 20)}<span><b>Returns by serial</b><p>File a return online with the serial and your phone number.</p></span></div><div>${ic('truck', 20)}<span><b>Delivery across Accra</b><p>Our own riders. The fee depends on your area.</p></span></div></section>`}`;
-};
-SV.product = r => {
-  const p = prod(r.parts[1]); if (!p || p.active === false) return `<div class="narrow">${emptyBox('box', 'Product not found', 'It may have been removed.', `<a class="btn pri" href="#/">Back to the shop</a>`)}</div>`;
-  const a = av(p.id), inCart = (cartGet().find(i => i.pid === p.id) || {}).qty || 0;
-  return `<div style="padding-top:20px"><a class="btn ghost sm" href="#/">${ic('back', 15)}All products</a></div><div class="pdp"><div class="pic">${pic(p, 300, 200)}</div><div><span class="muted">${esc([p.brand, p.cat].filter(Boolean).join(' · '))}</span><h1 style="margin-top:6px">${esc(p.name)}</h1><div class="price">${money(p.price)}</div>
-  <p>${a ? `${st(a <= 3 ? `Only ${a} left` : 'In stock', a <= 3 ? 'a' : 'g')}` : st('Out of stock', 'm')}</p>
-  <div class="row" style="margin-top:22px">${a ? `<div class="qty"><button onclick="UI.pq=Math.max(1,(UI.pq||1)-1);$('#pq').textContent=UI.pq" aria-label="One fewer">${ic('minus', 14)}</button><span id="pq">${UI.pq = 1}</span><button onclick="UI.pq=Math.min(${Math.max(1, a - inCart)},(UI.pq||1)+1);$('#pq').textContent=UI.pq" aria-label="One more">${ic('plus', 14)}</button></div><button class="btn pri lg" onclick="addToCart('${p.id}',UI.pq||1)" ${a > inCart ? '' : 'disabled'}>${ic('cart', 17)}${a > inCart ? 'Add to cart' : 'All in your cart'}</button>` : `<span class="muted">Call or WhatsApp the shop to ask when it’s back.</span>`}</div>
-  <div class="note" style="margin-top:22px">${ic('shield', 16)}<span>${p.w ?? 12}-month warranty and ${p.r ?? 7}-day returns. Your receipt lists this unit’s serial number, which you’ll need for any claim.</span></div>
-  ${p.desc ? `<h3 style="margin-top:26px">Details</h3><div class="specs">${esc(p.desc)}</div>` : ''}</div></div>`;
-};
-function addToCart(pid, n = 1) {
-  const c = cartGet(), x = c.find(i => i.pid === pid), have = x ? x.qty : 0, a = av(pid);
-  if (have + n > a) return toast(`Only ${a} available`, 'err');
-  if (x) x.qty += n; else c.push({ pid, qty: n }); cartSet(c);
-  toast('Added to cart', 'ok'); render();
+const storeCats = () => { const used = new Set(shopProducts().map(p => p.cat)); const listed = (set_('categories') || []).filter(c => used.has(c)); return [...listed, ...[...used].filter(c => !listed.includes(c))] };
+const waLink = (text = '') => { const w = normPhone(set_('store').whatsapp); return w.length >= 9 ? `https://wa.me/233${w.slice(1)}${text ? '?text=' + encodeURIComponent(text) : ''}` : '' };
+const closeDrawer = () => { const d = $('#drawer'); if (d) d.classList.remove('open') };
+const tag = (p, big) => `<span class="ptag${big ? ' big' : ''}">${money(p.price)}</span>${p.was > p.price ? `<s class="was">${money(p.was)}</s>` : ''}`;
+// Small, safe formatting for blog posts: ## headings, - lists, **bold**, blank-line paragraphs.
+function md(t) {
+  const out = []; let list = null;
+  const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  String(t || '').split(/\n/).forEach(l => {
+    const x = l.trim();
+    if (/^[-*] /.test(x)) { (list = list || []).push(`<li>${inl(x.slice(2))}</li>`); return }
+    if (list) { out.push(`<ul>${list.join('')}</ul>`); list = null }
+    if (!x) return;
+    if (x.startsWith('## ')) out.push(`<h2>${inl(x.slice(3))}</h2>`); else if (x.startsWith('# ')) out.push(`<h2>${inl(x.slice(2))}</h2>`); else out.push(`<p>${inl(x)}</p>`);
+  });
+  if (list) out.push(`<ul>${list.join('')}</ul>`);
+  return out.join('');
 }
+
+function renderStore() {
+  const r = route(), page = r.parts[0] || '';
+  const views = { '': SV.home, shop: SV.shop, p: SV.product, cart: SV.cart, done: SV.done, track: SV.track, returns: SV.returns, warranty: SV.warranty, blog: SV.blog, contact: SV.contact, privacy: SV.legal, terms: SV.legal, policies: SV.legal };
+  clearInterval(UI.carT);
+  const body = (views[page] || SV.home)(r);
+  const store = set_('store'), cats = storeCats(), wa = waLink();
+  const titles = { shop: 'Shop', cart: 'Your cart', track: 'Track an order', returns: 'Returns', warranty: 'Warranty check', blog: 'Blog', contact: 'Contact us', privacy: 'Privacy policy', terms: 'Terms of sale', policies: 'Returns and warranty policy' };
+  const post = page === 'blog' && r.parts[1] ? (set_('blog') || []).find(x => x.id === r.parts[1]) : null;
+  document.title = (page === 'p' && prod(r.parts[1]) ? prod(r.parts[1]).name + ' | ' : post ? post.title + ' | ' : titles[page] ? titles[page] + ' | ' : '') + store.name;
+  const curCat = page === 'shop' ? r.q.get('cat') || '' : '';
+  const q = page === 'shop' ? r.q.get('q') || '' : '';
+  $('#app').innerHTML = `<div class="utility"><div class="in"><span>${ic('truck', 15)}Delivery across Accra by our own riders</span><span class="sp"></span>${store.phone ? `<a href="tel:${esc(store.phone)}">${ic('phone', 14)}${esc(store.phone)}</a>` : ''}<a href="#/track">Track an order</a><a href="#/contact">Help</a></div></div>
+  <header class="shead"><div class="in"><button class="drawer-btn" onclick="$('#drawer').classList.add('open')" aria-label="Open menu">${ic('menu', 22)}</button>
+  <a href="#/" class="lockup" aria-label="${esc(store.name)} home"><span class="mk ring"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></a>
+  <form class="ssearch" role="search" onsubmit="event.preventDefault();go('shop?q='+encodeURIComponent(this.q.value.trim()))">${ic('search', 18)}<input name="q" placeholder="Search laptops, phones, cameras…" value="${esc(q)}" aria-label="Search products"><button class="btn pri">Search</button></form>
+  <nav class="hact"><a href="#/contact" class="hlink">${ic('msg', 20)}<span>Contact</span></a><a href="#/cart" class="hlink cart" aria-label="Cart">${ic('cart', 21)}<span>Cart</span><b class="cartN ${cartCount() ? '' : 'hide'}">${cartCount()}</b></a></nav></div>
+  <nav class="catbar" aria-label="Categories"><div class="in"><a href="#/shop" class="${page === 'shop' && !curCat && !q ? 'act' : ''}">All products</a>${cats.map(c => `<a href="#/shop?cat=${encodeURIComponent(c)}" class="${curCat === c ? 'act' : ''}">${esc(c)}</a>`).join('')}<a href="#/blog" class="${page === 'blog' ? 'act' : ''}">Blog</a></div></nav></header>
+  <div class="drawer" id="drawer"><div class="scr" onclick="closeDrawer()"></div><div class="pane"><div class="row between" style="margin-bottom:10px"><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><button class="btn ghost sm" onclick="closeDrawer()" aria-label="Close menu">${ic('x', 18)}</button></div>
+  <a href="#/" onclick="closeDrawer()">Home</a><a href="#/shop" onclick="closeDrawer()">All products</a>${cats.map(c => `<a class="sub" href="#/shop?cat=${encodeURIComponent(c)}" onclick="closeDrawer()">${esc(c)}</a>`).join('')}<a href="#/blog" onclick="closeDrawer()">Blog</a><a href="#/track" onclick="closeDrawer()">Track an order</a><a href="#/returns" onclick="closeDrawer()">Returns</a><a href="#/warranty" onclick="closeDrawer()">Warranty check</a><a href="#/contact" onclick="closeDrawer()">Contact us</a>${canInstall() ? `<a href="#" onclick="event.preventDefault();installApp()">Install the app</a>` : ''}</div></div>
+  <main class="store" id="main">${body}</main>
+  <footer class="sfoot"><div class="in"><div class="fbrand"><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><p>Laptops, phones, CCTV, storage and accessories, sold with a warranty and delivered across Accra.</p>${wa ? `<a class="btn gold" href="${wa}" target="_blank" rel="noopener">${ic('msg', 16)}Chat on WhatsApp</a>` : ''}</div>
+  <div><h4>Shop</h4><a href="#/shop">All products</a>${cats.slice(0, 6).map(c => `<a href="#/shop?cat=${encodeURIComponent(c)}">${esc(c)}</a>`).join('')}</div>
+  <div><h4>Help</h4><a href="#/track">Track an order</a><a href="#/returns">Return an item</a><a href="#/warranty">Check a warranty</a><a href="#/contact">Contact us</a>${canInstall() ? `<button class="lnk" onclick="installApp()">Install the app</button>` : ''}</div>
+  <div><h4>Company</h4><a href="#/blog">Blog</a><a href="#/policies">Returns and warranty policy</a><a href="#/terms">Terms of sale</a><a href="#/privacy">Privacy policy</a></div>
+  <div><h4>Visit or call</h4>${store.address ? `<span class="fl">${esc(store.address)}</span>` : ''}${store.hours ? `<span class="fl">${esc(store.hours)}</span>` : ''}${store.phone ? `<a href="tel:${esc(store.phone)}">${esc(store.phone)}</a>` : ''}${store.email ? `<a href="mailto:${esc(store.email)}">${esc(store.email)}</a>` : ''}</div></div>
+  <div class="base"><span>© ${new Date().getFullYear()} ${esc(store.name)}. All rights reserved.</span><span><a href="#/privacy">Privacy</a><a href="#/terms">Terms</a><a href="/staff">Staff sign in</a></span></div></footer>`;
+  if (page === '' && !r.q.get('q')) startCarousel();
+  if (r.q.get('q') && page === '') go('shop?q=' + encodeURIComponent(r.q.get('q')));
+}
+
+/* product card, used everywhere */
+function pcard(p) {
+  const a = av(p.id), off = p.was > p.price ? Math.round((1 - p.price / p.was) * 100) : 0;
+  return `<article class="pcard${a ? '' : ' out'}"><a class="pic" href="#/p/${p.id}" aria-label="${esc(p.name)}">${pic(p, 150, 100)}${off ? `<span class="off">${off}% off</span>` : ''}${!a ? `<span class="soldout">Out of stock</span>` : a <= 3 ? `<span class="few">Only ${a} left</span>` : ''}</a>
+  <div class="meta"><span class="brandn">${esc(p.brand || p.cat)}</span><a class="nm" href="#/p/${p.id}">${esc(p.name)}</a><span class="wr">${ic('shield', 14)}${p.w ?? 12}-month warranty</span>
+  <div class="buy"><div class="prices">${tag(p)}</div>${a ? `<button class="qadd" onclick="addToCart('${p.id}',1,this)" aria-label="Add ${esc(p.name)} to cart">${ic('cart', 18)}<span>Add</span></button>` : ''}</div></div></article>`;
+}
+
+/* ---------- home ---------- */
+function slides() {
+  const b = (set_('banners') || []).filter(x => x.on !== false && (x.title || x.img));
+  if (b.length) return b;
+  const n = set_('store').name;
+  return [{ title: 'Tech at the right price.', text: `Laptops, phones, CCTV and accessories from ${n}, delivered across Accra.`, btn: 'Shop all products', link: '#/shop', art: 'Laptops' },
+  { title: 'See everything, from anywhere.', text: 'CCTV cameras, recorders and storage for your home or shop.', btn: 'Shop CCTV', link: '#/shop?cat=' + encodeURIComponent(storeCats().find(c => /cctv|secur/i.test(c)) || 'CCTV & Security'), art: 'CCTV & Security' }];
+}
+SV.home = () => {
+  const S2 = slides(), all = shopProducts(), cats = storeCats(), posts = (set_('blog') || []).slice(0, 3), wa = waLink('Hello, I need help choosing a device.');
+  const inStock = all.filter(p => av(p.id) > 0);
+  let feat = all.filter(p => p.featured && av(p.id) > 0); if (feat.length < 4) feat = [...feat, ...inStock.filter(p => !p.featured).sort((a, b) => (b.updated || 0) - (a.updated || 0))].slice(0, 8);
+  const deals = inStock.filter(p => p.was > p.price).slice(0, 4);
+  UI.car = Math.min(UI.car || 0, S2.length - 1);
+  return `<section class="carousel" aria-roledescription="carousel" aria-label="Highlights" onmouseenter="UI.carHold=1" onmouseleave="UI.carHold=0">
+  <div class="track" id="carTrack" style="transform:translateX(-${UI.car * 100}%)">${S2.map((s, i) => `<div class="slide${s.img ? ' photo' : ''}" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${S2.length}" ${s.img ? `style="background-image:url('${esc(s.img)}')"` : ''}>
+  <div class="copy"><h2>${esc(s.title)}</h2>${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.btn ? `<a class="btn gold lg" href="${esc(s.link || '#/shop')}">${esc(s.btn)}</a>` : ''}</div>
+  ${s.img ? '' : slideArt(s)}</div>`).join('')}</div>
+  ${S2.length > 1 ? `<button class="carbtn prev" onclick="carGo(-1)" aria-label="Previous slide">${ic('back', 22)}</button><button class="carbtn next" onclick="carGo(1)" aria-label="Next slide">${ic('chev', 22)}</button><div class="dots">${S2.map((_, i) => `<button class="${i === UI.car ? 'on' : ''}" onclick="carTo(${i})" aria-label="Slide ${i + 1}"></button>`).join('')}</div>` : ''}</section>
+  ${cats.length ? `<section class="sec"><div class="sechd"><h2>Shop by category</h2><a href="#/shop">All products${ic('chev', 16)}</a></div><div class="cattiles">${cats.map(c => { const n = all.filter(p => p.cat === c).length; return `<a href="#/shop?cat=${encodeURIComponent(c)}" class="ctile"><span class="cart2">${art({ cat: c }, 96, 64)}</span><b>${esc(c)}</b><span>${n} product${n === 1 ? '' : 's'}</span></a>` }).join('')}</div></section>` : ''}
+  <section class="assure"><div>${ic('shield', 22)}<span><b>Warranty on every device</b>Written on your receipt</span></div><div>${ic('truck', 22)}<span><b>Delivery across Accra</b>Fee shown at checkout</span></div><div>${ic('cash', 22)}<span><b>Pay on delivery</b>Cash or mobile money${CFG.paystackPublicKey ? ', or pay online' : ''}</span></div><div>${ic('msg', 22)}<span><b>Real people to help</b>Call or WhatsApp the shop</span></div></section>
+  ${feat.length ? `<section class="sec"><div class="sechd"><h2>${all.some(p => p.featured) ? 'Featured' : 'In stock now'}</h2><a href="#/shop">See all${ic('chev', 16)}</a></div><div class="pgrid">${feat.map(pcard).join('')}</div></section>` : `<section class="sec"><div class="card">${emptyBox('box', 'Products are on the way', 'Our online catalogue is being set up. Call or WhatsApp the shop in the meantime.', wa ? `<a class="btn pri" href="${wa}" target="_blank" rel="noopener">Chat on WhatsApp</a>` : '')}</div></section>`}
+  ${deals.length ? `<section class="sec deals"><div class="sechd"><h2>Price drops</h2><a href="#/shop?sort=deals">See all deals${ic('chev', 16)}</a></div><div class="pgrid">${deals.map(pcard).join('')}</div></section>` : ''}
+  <section class="sec how"><div class="sechd"><h2>How buying works</h2></div><ol class="howsteps"><li><b>Pick your device</b><span>Add it to your cart. No account needed.</span></li><li><b>Check out</b><span>Give your name, phone and delivery area. The delivery fee shows straight away.</span></li><li><b>We call to confirm</b><span>We check the details with you and pack your order.</span></li><li><b>Delivered to you</b><span>Our rider brings it. Pay on delivery${CFG.paystackPublicKey ? ' or pay online at checkout' : ' with cash or MoMo'}.</span></li></ol></section>
+  ${posts.length ? `<section class="sec"><div class="sechd"><h2>From the blog</h2><a href="#/blog">All posts${ic('chev', 16)}</a></div><div class="bgrid">${posts.map(bcard).join('')}</div></section>` : ''}
+  <section class="helpband"><div><h2>Not sure what to buy?</h2><p>Tell us what you need it for and your budget. We’ll suggest the right device.</p></div><div class="row">${wa ? `<a class="btn gold lg" href="${wa}" target="_blank" rel="noopener">${ic('msg', 18)}WhatsApp us</a>` : ''}<a class="btn lg onnavy" href="#/contact">Contact us</a></div></section>`;
+};
+function slideArt(s) {
+  const c = s.art || new URLSearchParams(String(s.link || '').split('?')[1] || '').get('cat') || '';
+  const k = c ? artKey(c) : '';
+  return `<div class="slideart" aria-hidden="true"><div class="disc">${k && k !== 'Other' ? art({ cat: c }, 300, 200) : '<span class="bigmark"></span>'}</div>${k && fromPrice(c) ? `<span class="ptag big">From ${money(fromPrice(c))}</span>` : ''}</div>`;
+}
+function carTo(i) { const n = slides().length; UI.car = (i + n) % n; const t = $('#carTrack'); if (!t) return; t.style.transform = `translateX(-${UI.car * 100}%)`; document.querySelectorAll('.carousel .dots button').forEach((b, k) => b.classList.toggle('on', k === UI.car)) }
+function carGo(d) { carTo((UI.car || 0) + d); startCarousel() }
+function startCarousel() {
+  clearInterval(UI.carT); if (slides().length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  UI.carT = setInterval(() => { if (!UI.carHold && !document.hidden) carTo((UI.car || 0) + 1) }, 6000);
+  const el = $('.carousel'); if (!el) return; let x0 = null;
+  el.addEventListener('pointerdown', e => { x0 = e.clientX }, { passive: true });
+  el.addEventListener('pointerup', e => { if (x0 != null && Math.abs(e.clientX - x0) > 40) carGo(e.clientX < x0 ? 1 : -1); x0 = null }, { passive: true });
+}
+
+/* ---------- shop / search ---------- */
+SV.shop = r => {
+  const q = (r.q.get('q') || '').trim(), cat = r.q.get('cat') || '', sort = r.q.get('sort') || UI.ssort || 'feat', only = !!UI.sOnly;
+  const all = shopProducts(), cats = storeCats(), ql = q.toLowerCase();
+  let list = all.filter(p => (!cat || p.cat === cat) && (!ql || [p.name, p.brand, p.cat, p.sku, p.desc].join(' ').toLowerCase().includes(ql)) && (!only || av(p.id) > 0) && (sort !== 'deals' || p.was > p.price));
+  const brands = [...new Set(list.map(p => p.brand).filter(Boolean))].sort(), brand = UI.sBrand && brands.includes(UI.sBrand) ? UI.sBrand : '';
+  if (brand) list = list.filter(p => p.brand === brand);
+  list.sort(sort === 'lo' ? (a, b) => a.price - b.price : sort === 'hi' ? (a, b) => b.price - a.price : sort === 'new' ? (a, b) => (b.updated || 0) - (a.updated || 0) : (a, b) => (av(b.id) > 0) - (av(a.id) > 0) || !!b.featured - !!a.featured || a.name.localeCompare(b.name));
+  const link = (k, v) => { const u = new URLSearchParams(r.q); v ? u.set(k, v) : u.delete(k); const s2 = u.toString(); return '#/shop' + (s2 ? '?' + s2 : '') };
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<span>${q ? 'Search' : cat ? esc(cat) : 'All products'}</span></div>
+  <div class="shophd"><h1>${q ? `Results for “${esc(q)}”` : cat ? esc(cat) : 'All products'}</h1><span class="muted">${list.length} product${list.length === 1 ? '' : 's'}</span></div>
+  <div class="shop"><aside class="filters"><h3>Category</h3><a href="${link('cat', '')}" class="${cat ? '' : 'on'}">All</a>${cats.map(c => `<a href="${link('cat', c)}" class="${cat === c ? 'on' : ''}">${esc(c)}<span>${all.filter(p => p.cat === c).length}</span></a>`).join('')}
+  ${brands.length > 1 ? `<h3>Brand</h3><a href="#" class="${brand ? '' : 'on'}" onclick="event.preventDefault();UI.sBrand='';render()">All brands</a>${brands.map(b => `<a href="#" class="${brand === b ? 'on' : ''}" onclick="event.preventDefault();UI.sBrand='${esc(b)}';render()">${esc(b)}</a>`).join('')}` : ''}
+  <h3>Availability</h3><label class="chk"><input type="checkbox" ${only ? 'checked' : ''} onchange="UI.sOnly=this.checked;render()"><span>In stock only</span></label></aside>
+  <div><div class="shopbar"><div class="chips">${cats.map(c => `<a href="${link('cat', cat === c ? '' : c)}" class="${cat === c ? 'on' : ''}">${esc(c)}</a>`).join('')}</div><select onchange="shopSort(this.value)" aria-label="Sort products"><option value="feat" ${sort === 'feat' ? 'selected' : ''}>Recommended</option><option value="new" ${sort === 'new' ? 'selected' : ''}>Newest</option><option value="lo" ${sort === 'lo' ? 'selected' : ''}>Price: low to high</option><option value="hi" ${sort === 'hi' ? 'selected' : ''}>Price: high to low</option><option value="deals" ${sort === 'deals' ? 'selected' : ''}>Deals only</option></select></div>
+  ${list.length ? `<div class="pgrid">${list.map(pcard).join('')}</div>` : `<div class="card">${emptyBox('search', 'No products match', q ? 'Try a shorter search, or ask us on WhatsApp. We may have it in the shop.' : 'Try another category or clear the filters.', `<a class="btn pri" href="#/shop">See all products</a>`)}</div>`}</div></div>`;
+};
+
+function shopSort(v) { const u = new URLSearchParams(route().q); if (v === 'feat') u.delete('sort'); else u.set('sort', v); UI.ssort = v; go('shop' + (u.toString() ? '?' + u : '')) }
+const fromPrice = c => { const ps = shopProducts().filter(p => artKey(p.cat) === artKey(c) && av(p.id) > 0).map(p => p.price); return ps.length ? Math.min(...ps) : 0 };
+
+/* ---------- product ---------- */
+SV.product = r => {
+  const p = prod(r.parts[1]); if (!p || p.active === false) return `<div class="narrow">${emptyBox('box', 'Product not found', 'It may have been removed.', `<a class="btn pri" href="#/shop">Back to the shop</a>`)}</div>`;
+  const a = av(p.id), inCart = (cartGet().find(i => i.pid === p.id) || {}).qty || 0, left = a - inCart, wa = waLink(`Hello, I’m interested in ${p.name} (${money(p.price)}).`);
+  const rel = shopProducts().filter(x => x.id !== p.id && x.cat === p.cat).sort((x, y) => (av(y.id) > 0) - (av(x.id) > 0)).slice(0, 4);
+  const specs = String(p.desc || '').split('\n').map(s => s.trim()).filter(Boolean);
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<a href="#/shop?cat=${encodeURIComponent(p.cat)}">${esc(p.cat)}</a>${ic('chev', 14)}<span>${esc(p.name)}</span></div>
+  <div class="pdp"><div class="pic">${pic(p, 340, 226)}${p.was > p.price ? `<span class="off">${Math.round((1 - p.price / p.was) * 100)}% off</span>` : ''}</div><div class="info"><span class="brandn">${esc(p.brand || p.cat)}</span><h1>${esc(p.name)}</h1>
+  <div class="prices">${tag(p, true)}</div>
+  <p class="stock">${a ? (a <= 3 ? st(`Only ${a} left`, 'a') : st('In stock', 'g')) : st('Out of stock', 'm')}</p>
+  ${a ? `<div class="buyrow"><div class="qty"><button onclick="UI.pq=Math.max(1,(UI.pq||1)-1);$('#pq').textContent=UI.pq" aria-label="One fewer">${ic('minus', 14)}</button><span id="pq">${UI.pq = 1}</span><button onclick="UI.pq=Math.min(${Math.max(1, left)},(UI.pq||1)+1);$('#pq').textContent=UI.pq" aria-label="One more">${ic('plus', 14)}</button></div><button class="btn pri lg" onclick="addToCart('${p.id}',UI.pq||1)" ${left > 0 ? '' : 'disabled'}>${ic('cart', 18)}${left > 0 ? 'Add to cart' : 'All in your cart'}</button><button class="btn gold lg" onclick="buyNow('${p.id}')" ${left > 0 || inCart ? '' : 'disabled'}>Buy now</button></div>` : `<p class="muted" style="margin-top:14px">Call or WhatsApp the shop to ask when it’s back.</p>`}
+  ${wa ? `<a class="walink" href="${wa}" target="_blank" rel="noopener">${ic('msg', 17)}Ask about this on WhatsApp</a>` : ''}
+  <ul class="perks"><li>${ic('shield', 18)}<span><b>${p.w ?? 12}-month warranty</b>From the day you receive it</span></li><li>${ic('undo', 18)}<span><b>${p.r ?? 7}-day returns</b>If it isn’t right, <a href="#/policies">see the policy</a></span></li><li>${ic('truck', 18)}<span><b>Delivery across Accra</b>Fee by area, shown at checkout</span></li></ul>
+  ${specs.length ? `<h2 class="dh">Specifications</h2><ul class="specl">${specs.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}</div></div>
+  ${rel.length ? `<section class="sec"><div class="sechd"><h2>More in ${esc(p.cat)}</h2><a href="#/shop?cat=${encodeURIComponent(p.cat)}">See all${ic('chev', 16)}</a></div><div class="pgrid">${rel.map(pcard).join('')}</div></section>` : ''}`;
+};
+function addToCart(pid, n = 1, btn) {
+  const c = cartGet(), x = c.find(i => i.pid === pid), have = x ? x.qty : 0, a = av(pid);
+  if (have + n > a) return toast(a ? `Only ${a} available` : 'Out of stock', 'err');
+  if (x) x.qty += n; else c.push({ pid, qty: n }); cartSet(c);
+  toast(`${prod(pid).name} added to your cart`, 'ok');
+  if (btn) { btn.classList.add('done'); btn.innerHTML = `${ic('check', 18, 2)}<span>Added</span>`; setTimeout(() => { if (btn.isConnected) { btn.classList.remove('done'); btn.innerHTML = `${ic('cart', 18)}<span>Add</span>` } }, 1600); return }
+  render();
+}
+function buyNow(pid) { const c = cartGet(); if (!c.find(i => i.pid === pid)) { c.push({ pid, qty: UI.pq || 1 }); cartSet(c) } go('cart') }
+
+/* ---------- cart and checkout ---------- */
 SV.cart = () => {
   const c = cartGet().filter(i => prod(i.pid)); const K = UI.ck = UI.ck || ls.get('tle-ck', { name: '', phone: '', email: '', area: '', landmark: '' });
-  if (!c.length) return `<div class="narrow">${emptyBox('cart', 'Your cart is empty', 'Browse laptops, phones, CCTV and storage.', `<a class="btn pri" href="#/">Shop products</a>`)}</div>`;
+  if (!c.length) return `<div class="narrow">${emptyBox('cart', 'Your cart is empty', 'Find a laptop, phone, camera or accessory you like.', `<a class="btn pri" href="#/shop">Start shopping</a>`)}</div>`;
   const areas = set_('areas'), area = areas.find(a => a.name === K.area), sub = c.reduce((a, i) => a + prod(i.pid).price * i.qty, 0), fee = area ? area.fee : 0;
   const paystack = !!CFG.paystackPublicKey;
-  return `<h1 style="margin:32px 0 18px;font-size:28px;letter-spacing:-.02em">Checkout</h1><div class="cols c-main"><section class="card"><div class="hd"><h2>Delivery details</h2></div><div class="bd"><p class="small muted">No account needed.</p>
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<span>Checkout</span></div><h1 class="pageh">Checkout</h1><div class="cols c-main"><section class="card"><div class="hd"><h2>Delivery details</h2></div><div class="bd"><p class="small muted">No account needed. We use these details only for this order.</p>
   <label class="f" for="ckN">Full name</label><input id="ckN" value="${esc(K.name)}" oninput="UI.ck.name=this.value" autocomplete="name">
-  <div class="fgrid"><div><label class="f" for="ckP">Phone number</label><input id="ckP" value="${esc(K.phone)}" oninput="UI.ck.phone=this.value" inputmode="tel" autocomplete="tel"></div><div><label class="f" for="ckE">Email${paystack ? '' : ' (optional)'}</label><input id="ckE" type="email" value="${esc(K.email)}" oninput="UI.ck.email=this.value" autocomplete="email"></div></div>
+  <div class="fgrid"><div><label class="f" for="ckP">Phone number</label><input id="ckP" value="${esc(K.phone)}" oninput="UI.ck.phone=this.value" inputmode="tel" autocomplete="tel"></div><div><label class="f" for="ckE">Email${paystack ? '' : ' (for your receipt)'}</label><input id="ckE" type="email" value="${esc(K.email)}" oninput="UI.ck.email=this.value" autocomplete="email"></div></div>
   <label class="f" for="ckA">Delivery area</label><select id="ckA" onchange="UI.ck.area=this.value;render()"><option value="">Choose your area</option>${areas.map(a => `<option ${a.name === K.area ? 'selected' : ''} value="${esc(a.name)}">${esc(a.name)}, ${money(a.fee)}</option>`).join('')}</select>
-  <label class="f" for="ckL">Landmark or directions</label><input id="ckL" value="${esc(K.landmark)}" oninput="UI.ck.landmark=this.value" autocomplete="street-address">
+  <label class="f" for="ckL">Landmark or directions</label><input id="ckL" value="${esc(K.landmark)}" oninput="UI.ck.landmark=this.value" autocomplete="street-address" placeholder="e.g. Opposite the Shell station">
   ${paystack ? `<label class="f">Payment</label><div class="seg"><button class="${UI.payM !== 'pod' ? 'on' : ''}" onclick="UI.payM='paystack';render()">Pay now (MoMo or card)</button><button class="${UI.payM === 'pod' ? 'on' : ''}" onclick="UI.payM='pod';render()">Pay on delivery</button></div>` : `<div class="note" style="margin-top:16px">${ic('cash', 16)}<span>Pay on delivery with cash or mobile money. We’ll call to confirm before sending.</span></div>`}</div></section>
-  <section class="card"><div class="hd"><h2>Your order</h2></div><div class="bd" style="padding-top:4px">${c.map((i, k) => { const p = prod(i.pid); return `<div class="line"><div class="thumb">${pic(p, 40, 28)}</div><div class="grow"><div class="strong">${esc(p.name)}</div><div class="row between" style="margin-top:8px"><div class="qty"><button onclick="cartQty(${k},-1)" aria-label="One fewer">${ic('minus', 14)}</button><span>${i.qty}</span><button onclick="cartQty(${k},1)" aria-label="One more">${ic('plus', 14)}</button></div><span class="strong">${money(p.price * i.qty)}</span></div></div></div>` }).join('')}
+  <section class="card"><div class="hd"><h2>Your order</h2><span class="sp"></span><span class="small muted">${cartCount()} item${cartCount() === 1 ? '' : 's'}</span></div><div class="bd" style="padding-top:4px">${c.map((i, k) => { const p = prod(i.pid); return `<div class="line"><a class="thumb" href="#/p/${p.id}">${pic(p, 40, 28)}</a><div class="grow"><div class="strong">${esc(p.name)}</div><div class="row between" style="margin-top:8px"><div class="qty"><button onclick="cartQty(${k},-1)" aria-label="One fewer">${ic('minus', 14)}</button><span>${i.qty}</span><button onclick="cartQty(${k},1)" aria-label="One more">${ic('plus', 14)}</button></div><span class="strong">${money(p.price * i.qty)}</span></div></div></div>` }).join('')}
   <div style="margin-top:8px"><div class="tot"><span>Subtotal</span><span>${money(sub)}</span></div><div class="tot"><span>Delivery${area ? ' to ' + esc(area.name) : ''}</span><span>${area ? money(fee) : 'Choose an area'}</span></div><div class="tot big"><span>Total</span><span>${money(sub + fee)}</span></div></div>
-  <button class="btn pri lg block" style="margin-top:14px" onclick="act(this,checkout)">${paystack && UI.payM !== 'pod' ? `${ic('lock', 16)}Pay ${money(sub + fee)}` : 'Place order'}</button></div></section></div>`;
+  <button class="btn pri lg block" style="margin-top:14px" onclick="act(this,checkout)">${paystack && UI.payM !== 'pod' ? `${ic('lock', 16)}Pay ${money(sub + fee)}` : 'Place order'}</button>
+  <p class="small muted" style="margin-top:12px">By placing your order you agree to our <a href="#/terms">terms of sale</a>. See how we handle your details in our <a href="#/privacy">privacy policy</a>.</p></div></section></div>`;
 };
 function cartQty(k, d) { const c = cartGet(), i = c[k]; i.qty += d; if (i.qty > av(i.pid)) { i.qty -= d; return toast('No more of this item in stock', 'err') } if (i.qty < 1) c.splice(k, 1); cartSet(c); render() }
 async function checkout() {
   const K = UI.ck, c = cartGet(); ls.set('tle-ck', K);
   if (!K.name.trim() || normPhone(K.phone).length < 9) throw new Error('Add your name and phone number.');
+  if (K.email.trim() && !/^\S+@\S+\.\S+$/.test(K.email.trim())) throw new Error('Check your email address.');
   if (!K.area) throw new Error('Choose a delivery area.');
   const base = { items: c.map(i => ({ pid: i.pid, qty: i.qty })), name: K.name.trim(), phone: K.phone.trim(), email: K.email.trim(), area: K.area, landmark: K.landmark.trim() };
   if (CFG.paystackPublicKey && UI.payM !== 'pod') {
@@ -1199,33 +1428,41 @@ async function checkout() {
   }
   finishOrder(await API.placeOrder({ ...base, payment: 'pod' }));
 }
-function finishOrder(o) { cartSet([]); ls.set('tle-last-order', { no: o.no, phone: UI.ck.phone }); go('done/' + o.no) }
+function finishOrder(o) { cartSet([]); ls.set('tle-last-order', { no: o.no, phone: UI.ck.phone, email: !!UI.ck.email.trim() }); if (UI.ck.email.trim()) emailReceipt({ order: o.no }); go('done/' + o.no) }
 function loadScript(src) { return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Couldn’t load the payment window. Check your connection.')); document.head.appendChild(s) }) }
-SV.done = r => `<div class="narrow"><div class="verify"><div class="t">${ic('check', 18, 2)}Order placed</div><p>Your order number is <span class="mono strong">${esc(r.parts[1])}</span>. We’ll call you to confirm delivery. Your receipt will list the serial number of every item.</p></div><div class="row"><a class="btn pri" href="#/track?no=${esc(r.parts[1])}">Track this order</a><a class="btn" href="#/">Continue shopping</a></div></div>`;
+SV.done = r => { const last = ls.get('tle-last-order', {}); return `<div class="narrow"><div class="verify"><div class="t">${ic('check', 18, 2)}Thank you. Your order is in.</div><p>Your order number is <span class="mono strong">${esc(r.parts[1])}</span>. We’ll call you shortly to confirm delivery.${last.email ? ' We’ll also email your receipt when your order is packed.' : ''}</p></div>
+  <ol class="howsteps small"><li><b>We call to confirm</b><span>Usually within working hours on the same day.</span></li><li><b>We pack your order</b><span>Each device is checked before it leaves the shop.</span></li><li><b>Our rider delivers</b><span>Keep your phone on so the rider can reach you.</span></li></ol>
+  <div class="row"><a class="btn pri" href="#/track?no=${esc(r.parts[1])}">Track this order</a><a class="btn" href="#/shop">Continue shopping</a></div></div>` };
+
+/* ---------- tracking ---------- */
 SV.track = r => {
   const last = ls.get('tle-last-order', {}), no = r.q.get('no') || UI.tNo || last.no || '', ph = UI.tPh || (no === last.no ? last.phone : '') || '';
   const steps = ['placed', 'packed', 'out', 'delivered'], lbl = { placed: 'Order received', packed: 'Packed', out: 'On the way', delivered: 'Delivered' };
   const res = UI.tRes; const o = res && res.no === no ? res : null; const cur = o ? (o.status === 'paid' || o.status === 'pod' ? 0 : steps.indexOf(o.status)) : -1;
   return `<div class="narrow"><h1>Track an order</h1><p class="muted" style="margin:6px 0 20px">Use the order number from your confirmation and the phone number you checked out with.</p>
-  <section class="card"><div class="bd"><div class="fgrid"><div><label class="f" for="tq" style="margin-top:0">Order number</label><input id="tq" class="mono" value="${esc(no)}"></div><div><label class="f" for="tp" style="margin-top:0">Phone number</label><input id="tp" value="${esc(ph)}" inputmode="tel"></div></div><button class="btn pri" style="margin-top:16px" onclick="act(this,trackIt)">Track order</button></div></section>
-  ${o ? `<section class="card"><div class="bd"><div class="row between"><span class="mono strong">${esc(o.no)}</span>${o.status === 'cancelled' ? st('Cancelled', 'm') : ''}</div>${o.status === 'cancelled' ? '' : `<div class="steps">${steps.map((s, i) => `<span class="${i < cur ? 'done' : i === cur ? 'cur' : ''}">${lbl[s]}</span>`).join('')}</div>`}${o.rider ? `<p class="small" style="margin-top:12px">Your rider: ${esc(o.rider)}</p>` : ''}${o.serials && o.serials.length ? `<div style="margin-top:14px"><div class="small muted" style="margin-bottom:6px">Serial numbers in your order</div><div class="sns">${o.serials.map(s => sn(s, 'ok')).join('')}</div></div>` : ''}</div></section>` : UI.tErr ? `<div class="refuse">${ic('alert', 16)}<span>${esc(UI.tErr)}</span></div>` : ''}</div>`;
+  <section class="card"><div class="bd"><div class="fgrid"><div><label class="f" for="tq" style="margin-top:0">Order number</label><input id="tq" class="mono" value="${esc(no)}" placeholder="ORD-…"></div><div><label class="f" for="tp" style="margin-top:0">Phone number</label><input id="tp" value="${esc(ph)}" inputmode="tel"></div></div><button class="btn pri" style="margin-top:16px" onclick="act(this,trackIt)">Track order</button></div></section>
+  ${o ? `<section class="card"><div class="bd"><div class="row between"><span class="mono strong">${esc(o.no)}</span>${o.status === 'cancelled' ? st('Cancelled', 'm') : st(lbl[steps[Math.max(0, cur)]], cur === 3 ? 'g' : 'b')}</div>${o.status === 'cancelled' ? '<p class="small muted" style="margin-top:10px">This order was cancelled. Call the shop if you have questions.</p>' : `<div class="steps">${steps.map((s, i) => `<span class="${i < cur ? 'done' : i === cur ? 'cur' : ''}">${lbl[s]}</span>`).join('')}</div>`}${o.rider ? `<p class="small" style="margin-top:12px">Your rider: ${esc(o.rider)}</p>` : ''}${o.items && o.items.length ? `<div style="margin-top:14px">${o.items.map(i => `<div class="tot"><span>${esc((prod(i.pid) || {}).name || 'Item')} × ${i.qty}</span><span>${money(i.price * i.qty)}</span></div>`).join('')}${o.total != null ? `<div class="tot big"><span>Total</span><span>${money(o.total)}</span></div>` : ''}</div>` : ''}</div></section>` : UI.tErr ? `<div class="refuse">${ic('alert', 16)}<span>${esc(UI.tErr)}</span></div>` : ''}</div>`;
 };
 async function trackIt() { UI.tNo = val('tq').trim().toUpperCase(); UI.tPh = val('tp').trim(); UI.tErr = ''; UI.tRes = null; if (!UI.tNo || normPhone(UI.tPh).length < 9) { UI.tErr = 'Enter the order number and the phone number used.'; return render() } const o = await API.track(UI.tNo, UI.tPh); if (o) UI.tRes = { ...o, no: o.no || o.id }; else UI.tErr = 'No order matches that number and phone number.'; render() }
+
+/* ---------- returns and warranty ---------- */
+const findSerialHelp = `<details class="where"><summary>Where do I find the serial number?</summary><p>It’s printed on your receipt next to each item (it starts with S/N), and on the emailed receipt if you gave your email. You’ll also find it on a sticker under or behind the device, or in the device settings (on phones, dial *#06# or open Settings, About).</p></details>`;
 SV.returns = () => {
   const R = UI.sRet;
-  if (R && R.done) return `<div class="narrow"><div class="verify"><div class="t">${ic('check', 18, 2)}Return submitted</div><p>Your return number is <span class="mono strong">${esc(R.done)}</span>. Bring or send the device to the shop. We’ll scan its serial to confirm it’s the same unit, then review your claim.</p></div><button class="btn" onclick="UI.sRet=null;render()">Start another return</button></div>`;
-  if (R && R.v) { const v = R.v; return `<div class="narrow"><h1>Return an item</h1><div class="verify" style="margin-top:20px"><div class="t">${ic('shield', 18)}Purchase found</div><div class="row">${sn(v.serial, 'ok')}<span class="strong">${esc(v.product)}</span></div><p class="small" style="margin-top:10px">Bought ${fmtD(v.saleT)}. ${st(v.cov, v.covK === 'window' ? 'g' : v.covK === 'warranty' ? 'b' : 'r')}</p></div>
-  ${v.covK === 'expired' ? `<div class="note" style="margin-bottom:16px">${ic('alert', 16)}<span>This item is out of warranty. You can still submit it; the shop will review it.</span></div>` : ''}
-  <section class="card"><div class="bd"><label class="f" for="srR" style="margin-top:0">What’s wrong?</label><select id="srR">${REASONS.map(o => `<option>${o}</option>`).join('')}</select><label class="f" for="srD">Describe the problem</label><textarea id="srD" rows="3"></textarea><label class="f" for="srP">Photos of the fault (optional)</label><input id="srP" type="file" multiple accept="image/*"></div>
-  <div class="ft"><button class="btn" onclick="UI.sRet=null;render()">Back</button><button class="btn pri" onclick="act(this,submitOnlineReturn)">Submit return</button></div></section></div>` }
-  return `<div class="narrow"><h1>Return an item</h1><p class="muted" style="margin:6px 0 20px">You’ll need the serial number from your receipt or the device, and the phone number or email you used when you bought it.</p>
-  <section class="card"><div class="bd"><label class="f" for="srS" style="margin-top:0">Serial number</label><input id="srS" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false"><label class="f" for="srC">Phone number or email</label><input id="srC"><button class="btn pri" style="margin-top:16px" onclick="act(this,checkOnlineReturn)">Find my purchase</button><div id="srMsg" style="margin-top:12px"></div></div></section></div>`;
+  if (R && R.done) return `<div class="narrow"><div class="verify"><div class="t">${ic('check', 18, 2)}Return request sent</div><p>Your return number is <span class="mono strong">${esc(R.done)}</span>. Bring or send the device to the shop with its charger and accessories. We’ll check it and call you about the next step.</p></div><button class="btn" onclick="UI.sRet=null;render()">Start another return</button></div>`;
+  if (R && R.v) { const v = R.v; return `<div class="narrow"><h1>Return an item</h1><ol class="stepper"><li class="done">Find your purchase</li><li class="cur">Tell us what’s wrong</li><li>Bring the device</li></ol><div class="verify" style="margin-top:6px"><div class="t">${ic('shield', 18)}${esc(v.product)}</div><p class="small">Bought ${fmtD(v.saleT)}. ${st(v.cov, v.covK === 'window' ? 'g' : v.covK === 'warranty' ? 'b' : 'r')}</p></div>
+  ${v.covK === 'expired' ? `<div class="note" style="margin-bottom:16px">${ic('alert', 16)}<span>This item is out of warranty. You can still send the request and the shop will review it.</span></div>` : ''}
+  <section class="card"><div class="bd"><label class="f" for="srR" style="margin-top:0">What’s wrong?</label><select id="srR">${REASONS.map(o => `<option>${o}</option>`).join('')}</select><label class="f" for="srD">Describe the problem</label><textarea id="srD" rows="3" placeholder="What happens, and since when?"></textarea><label class="f" for="srP">Photos of the fault (optional)</label><input id="srP" type="file" multiple accept="image/*"></div>
+  <div class="ft"><button class="btn" onclick="UI.sRet=null;render()">Back</button><button class="btn pri" onclick="act(this,submitOnlineReturn)">Send return request</button></div></section></div>` }
+  return `<div class="narrow"><h1>Return an item</h1><p class="muted" style="margin:6px 0 18px">Something not right? Start a return in three steps. Read the <a href="#/policies">returns and warranty policy</a> for what’s covered.</p>
+  <ol class="stepper"><li class="cur">Find your purchase</li><li>Tell us what’s wrong</li><li>Bring the device</li></ol>
+  <section class="card"><div class="bd"><label class="f" for="srS" style="margin-top:0">Serial number from your receipt</label><input id="srS" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false"><label class="f" for="srC">Phone number or email you bought with</label><input id="srC"><button class="btn pri" style="margin-top:16px" onclick="act(this,checkOnlineReturn)">Find my purchase</button><div id="srMsg" style="margin-top:12px"></div>${findSerialHelp}</div></section></div>`;
 };
 async function checkOnlineReturn() {
   UI.attempts = (UI.attempts || 0); if (UI.attempts >= 6) { $('#srMsg').innerHTML = `<div class="refuse">${ic('alert', 16)}<span>Too many attempts. Please try again later or contact the shop.</span></div>`; return }
   const v = await API.verify(val('srS'), val('srC'));
   if (!v.ok) { UI.attempts++; $('#srMsg').innerHTML = `<div class="refuse">${ic('alert', 16)}<span>${esc(v.msg)}</span></div>`; return }
-  if (v.open) { $('#srMsg').innerHTML = `<div class="refuse">${ic('alert', 16)}<span>A return is already open for this serial. The shop will be in touch.</span></div>`; return }
+  if (v.open) { $('#srMsg').innerHTML = `<div class="refuse">${ic('alert', 16)}<span>A return is already open for this item. The shop will be in touch.</span></div>`; return }
   UI.attempts = 0; UI.sRet = { v, contact: val('srC') }; render();
 }
 async function submitOnlineReturn() {
@@ -1233,11 +1470,101 @@ async function submitOnlineReturn() {
   const res = await API.fileReturn({ serial: R.v.serial, contact: R.contact, reason: val('srR'), desc: val('srD').trim(), photos });
   UI.sRet = { done: res.rma }; render();
 }
-SV.warranty = () => `<div class="narrow"><h1>Check a warranty</h1><p class="muted" style="margin:6px 0 20px">Enter the serial number and the phone number or email used at purchase.</p><section class="card"><div class="bd"><label class="f" for="wS" style="margin-top:0">Serial number</label><input id="wS" class="mono" autocapitalize="characters" spellcheck="false"><label class="f" for="wC">Phone number or email</label><input id="wC"><button class="btn pri" style="margin-top:16px" onclick="act(this,checkWarranty)">Check warranty</button><div id="wMsg" style="margin-top:12px"></div></div></section></div>`;
+SV.warranty = () => `<div class="narrow"><h1>Check a warranty</h1><p class="muted" style="margin:6px 0 18px">See how long your device is covered for.</p>
+  <ol class="stepper"><li class="cur">Enter the serial number from your receipt</li><li>Add the phone number or email you bought with</li><li>See your cover</li></ol>
+  <section class="card"><div class="bd"><label class="f" for="wS" style="margin-top:0">Serial number</label><input id="wS" class="mono" autocapitalize="characters" spellcheck="false"><label class="f" for="wC">Phone number or email</label><input id="wC"><button class="btn pri" style="margin-top:16px" onclick="act(this,checkWarranty)">Check warranty</button><div id="wMsg" style="margin-top:12px"></div>${findSerialHelp}</div></section></div>`;
 async function checkWarranty() {
   const v = await API.verify(val('wS'), val('wC'));
-  $('#wMsg').innerHTML = v.ok ? `<div class="verify" style="margin:0"><div class="t">${ic('shield', 18)}${esc(v.product)}</div><div class="row">${sn(v.serial, 'ok')}${st(v.cov, v.covK === 'window' ? 'g' : v.covK === 'warranty' ? 'b' : 'r')}</div><p class="small muted" style="margin-top:10px">Bought ${fmtD(v.saleT)}. <a href="#/returns">Start a return</a></p></div>` : `<div class="refuse">${ic('alert', 16)}<span>${esc(v.msg)}</span></div>`;
+  $('#wMsg').innerHTML = v.ok ? `<div class="verify" style="margin:0"><div class="t">${ic('shield', 18)}${esc(v.product)}</div><p>${st(v.cov, v.covK === 'window' ? 'g' : v.covK === 'warranty' ? 'b' : 'r')}</p><p class="small muted" style="margin-top:10px">Bought ${fmtD(v.saleT)}. Need help with it? <a href="#/returns">Start a return</a></p></div>` : `<div class="refuse">${ic('alert', 16)}<span>${esc(v.msg)}</span></div>`;
 }
+
+/* ---------- blog ---------- */
+const bcard = p => `<a class="bcard" href="#/blog/${esc(p.id)}"><div class="bpic">${p.cover ? `<img src="${esc(p.cover)}" alt="" loading="lazy">` : `<span>${art({ cat: p.tag }, 120, 80)}</span>`}</div><div class="bmeta"><span class="btag">${esc(p.tag || 'News')}</span><b>${esc(p.title)}</b><p>${esc(p.excerpt || '')}</p><span class="small muted">${fmtD(p.t)}</span></div></a>`;
+SV.blog = r => {
+  const posts = set_('blog') || [], id = r.parts[1];
+  if (id) {
+    const p = posts.find(x => x.id === id); if (!p) return `<div class="narrow">${emptyBox('doc', 'Post not found', 'It may have been removed.', `<a class="btn pri" href="#/blog">All posts</a>`)}</div>`;
+    const more = posts.filter(x => x.id !== id).slice(0, 3), share = encodeURIComponent(`${p.title} ${location.origin}/#/blog/${p.id}`);
+    return `<article class="post"><div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<a href="#/blog">Blog</a>${ic('chev', 14)}<span>${esc(p.tag || 'Post')}</span></div>
+    <span class="btag">${esc(p.tag || 'News')}</span><h1>${esc(p.title)}</h1><p class="muted">${fmtD(p.t)}${p.by ? ', by ' + esc(p.by) : ''}</p>${p.cover ? `<img class="cover" src="${esc(p.cover)}" alt="">` : ''}
+    <div class="prose">${md(p.body)}</div><div class="row" style="margin-top:28px"><a class="btn" href="https://wa.me/?text=${share}" target="_blank" rel="noopener">${ic('msg', 16)}Share on WhatsApp</a><a class="btn ghost" href="#/blog">${ic('back', 15)}All posts</a></div></article>
+    ${more.length ? `<section class="sec"><div class="sechd"><h2>More from the blog</h2></div><div class="bgrid">${more.map(bcard).join('')}</div></section>` : ''}`;
+  }
+  const [first, ...rest] = posts;
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<span>Blog</span></div><div class="shophd"><h1>Blog</h1><span class="muted">Tech news, buying guides and updates from the shop</span></div>
+  ${first ? `<a class="bfeat" href="#/blog/${esc(first.id)}"><div class="bpic">${first.cover ? `<img src="${esc(first.cover)}" alt="">` : `<span>${art({ cat: first.tag }, 200, 134)}</span>`}</div><div class="bmeta"><span class="btag">${esc(first.tag || 'News')}</span><h2>${esc(first.title)}</h2><p>${esc(first.excerpt || '')}</p><span class="small muted">${fmtD(first.t)}</span></div></a>
+  ${rest.length ? `<div class="bgrid" style="margin-top:22px">${rest.map(bcard).join('')}</div>` : ''}` : `<div class="card">${emptyBox('doc', 'No posts yet', 'Check back soon for tech news and buying guides.', `<a class="btn pri" href="#/shop">Browse products</a>`)}</div>`}`;
+};
+
+/* ---------- contact ---------- */
+SV.contact = () => {
+  const s = set_('store'), wa = waLink('Hello PriceRight, '), map = s.map || (s.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.name + ' ' + s.address) : '');
+  if (UI.cDone) return `<div class="narrow"><div class="verify"><div class="t">${ic('check', 18, 2)}Message sent</div><p>Thanks. We’ve got your message (reference <span class="mono strong">${esc(UI.cDone)}</span>) and will reply by phone or email, usually within one working day.</p></div><button class="btn" onclick="UI.cDone=null;render()">Send another message</button></div>`;
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<span>Contact us</span></div><div class="shophd"><h1>Contact us</h1><span class="muted">Questions about a product, an order or a repair? We’re happy to help.</span></div>
+  <div class="contact"><div class="ways">${s.phone ? `<a class="way" href="tel:${esc(s.phone)}">${ic('phone', 22)}<span><b>Call us</b>${esc(s.phone)}</span></a>` : ''}${wa ? `<a class="way" href="${wa}" target="_blank" rel="noopener">${ic('msg', 22)}<span><b>WhatsApp</b>Chat with the shop</span></a>` : ''}${s.email ? `<a class="way" href="mailto:${esc(s.email)}">${ic('mail', 22)}<span><b>Email</b>${esc(s.email)}</span></a>` : ''}
+  <div class="way">${ic('pin', 22)}<span><b>Visit the shop</b>${esc(s.address || 'Accra, Ghana')}${s.hours ? `<br>${esc(s.hours)}` : ''}${map ? `<br><a href="${esc(map)}" target="_blank" rel="noopener">Get directions</a>` : ''}</span></div></div>
+  <section class="card"><div class="hd"><h2>Send us a message</h2></div><div class="bd"><div class="fgrid"><div class="full"><label class="f" for="cmN" style="margin-top:0">Your name</label><input id="cmN" autocomplete="name"></div><div><label class="f" for="cmP">Phone number</label><input id="cmP" inputmode="tel" autocomplete="tel"></div><div><label class="f" for="cmE">Email</label><input id="cmE" type="email" autocomplete="email"></div>
+  <div class="full"><label class="f" for="cmT">What is it about?</label><select id="cmT"><option>Help choosing a product</option><option>An order I placed</option><option>Returns, repairs or warranty</option><option>Business or bulk order</option><option>Something else</option></select></div>
+  <div class="full"><label class="f" for="cmM">Message</label><textarea id="cmM" rows="5"></textarea></div></div>
+  <p class="small muted" style="margin-top:12px">We use your details only to reply to you. See our <a href="#/privacy">privacy policy</a>.</p>
+  <button class="btn pri lg" style="margin-top:14px" onclick="act(this,sendContact)">Send message</button></div></section></div>
+  ${s.address ? `<div class="mapbox"><iframe title="Map to ${esc(s.name)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(s.name + ', ' + s.address)}&output=embed"></iframe></div>` : ''}`;
+};
+async function sendContact() {
+  const m = { name: val('cmN').trim(), phone: val('cmP').trim(), email: val('cmE').trim(), topic: val('cmT'), message: val('cmM').trim() };
+  if (m.name.length < 2) throw new Error('Add your name.'); if (normPhone(m.phone).length < 9 && !/^\S+@\S+\.\S+$/.test(m.email)) throw new Error('Add a phone number or email so we can reply.'); if (m.message.length < 5) throw new Error('Write your message.');
+  UI.cDone = await API.contact(m); render(); scrollTo(0, 0);
+}
+
+/* ---------- legal pages ---------- */
+SV.legal = r => {
+  const page = r.parts[0], s = set_('store'), D = LEGAL[page](s);
+  return `<div class="crumbs"><a href="#/">Home</a>${ic('chev', 14)}<span>${D.title}</span></div><div class="legal"><nav class="toc"><b>On this page</b>${D.sections.map((x, i) => `<a href="#/${page}" onclick="event.preventDefault();document.getElementById('lg${i}').scrollIntoView({behavior:'smooth'})">${x[0]}</a>`).join('')}<b style="margin-top:18px">Policies</b><a href="#/privacy" class="${page === 'privacy' ? 'on' : ''}">Privacy policy</a><a href="#/terms" class="${page === 'terms' ? 'on' : ''}">Terms of sale</a><a href="#/policies" class="${page === 'policies' ? 'on' : ''}">Returns and warranty</a></nav>
+  <article class="prose"><h1>${D.title}</h1><p class="muted">Last updated 3 November 2026</p>${D.intro ? `<p>${D.intro}</p>` : ''}${D.sections.map((x, i) => `<h2 id="lg${i}">${x[0]}</h2>${x[1]}`).join('')}</article></div>`;
+};
+const contactLine = s => [s.phone && `phone ${esc(s.phone)}`, s.email && `email <a href="mailto:${esc(s.email)}">${esc(s.email)}</a>`, s.address && `or visit us at ${esc(s.address)}`].filter(Boolean).join(', ') || 'use our <a href="#/contact">contact page</a>';
+const LEGAL = {
+  privacy: s => ({
+    title: 'Privacy policy',
+    intro: `${esc(s.name)} (“we”, “us”) respects your privacy. This policy explains what personal data we collect when you shop with us in store or online, why we collect it, and the rights you have under Ghana’s Data Protection Act, 2012 (Act 843).`,
+    sections: [
+      ['Who we are', `<p>${esc(s.name)} is the data controller for the personal data described here. To reach us about your data, ${contactLine(s)}.</p>`],
+      ['What we collect', `<ul><li><b>Contact details:</b> your name, phone number, email address (if you give it) and delivery area or landmark.</li><li><b>Purchase records:</b> what you bought, prices, payment method and transaction reference, and the serial number of each device, so we can honour warranties and returns.</li><li><b>Returns and repairs:</b> the problem you describe and any photos you send.</li><li><b>Messages:</b> what you send us through the contact form, phone, WhatsApp or email.</li></ul><p>We do not collect card numbers. Online card and mobile money payments are handled by our payment provider, Paystack, under its own privacy policy.</p>`],
+      ['Why we use it', `<p>We use your data to:</p><ul><li>process, deliver and support your order (needed to perform our contract with you);</li><li>issue receipts, including by email when you give us an address;</li><li>verify purchases for returns and warranty claims, and prevent fraud (our legitimate interest in protecting customers and stock);</li><li>keep accounting and tax records (a legal obligation);</li><li>reply to your questions.</li></ul><p>We will only send you marketing messages if you ask us to, and you can stop them at any time.</p>`],
+      ['Who we share it with', `<p>We never sell your personal data. We share only what is needed with:</p><ul><li>our delivery riders, who receive your name, phone number and delivery details;</li><li>Paystack, when you pay online;</li><li>service providers who host our systems and send our emails (such as Supabase, Vercel and our email provider). Some of these store data on servers outside Ghana. We use providers that protect data to a standard at least equal to Act 843;</li><li>authorities, where the law requires it.</li></ul>`],
+      ['How long we keep it', `<p>We keep purchase and receipt records for as long as tax and accounting law requires, and at least until your warranty ends. Contact form messages are kept for up to 24 months. When data is no longer needed, we delete or anonymise it.</p>`],
+      ['How we protect it', `<p>Access to customer data is limited to staff who need it and protected by individual logins. Data is encrypted in transit. Shop staff are trained to handle customer data carefully.</p>`],
+      ['Your rights', `<p>Under Act 843 you can:</p><ul><li>ask for a copy of the personal data we hold about you;</li><li>ask us to correct data that is wrong or incomplete;</li><li>ask us to delete data we no longer need, or object to how we use it;</li><li>withdraw consent where we rely on it, such as for marketing.</li></ul><p>To make a request, ${contactLine(s)}. We will reply within 21 days. If you are not satisfied, you can complain to the Data Protection Commission of Ghana.</p>`],
+      ['Your browser', `<p>Our website stores your cart and checkout details in your own browser so they are there when you come back. This is needed for the shop to work, and is not used for advertising or tracking. Clearing your browser data removes it. If you watch the map on our contact page, Google may set its own cookies.</p>`],
+      ['Children', `<p>Our online shop is meant for adults. We do not knowingly collect data from children under 18 without a parent’s or guardian’s consent.</p>`],
+      ['Changes to this policy', `<p>We may update this policy. The date at the top shows when it last changed.</p>`]
+    ]
+  }),
+  terms: s => ({
+    title: 'Terms of sale',
+    intro: `These terms apply when you buy from ${esc(s.name)} in our shop or through this website. Please read them with our <a href="#/policies">returns and warranty policy</a> and <a href="#/privacy">privacy policy</a>.`,
+    sections: [
+      ['Prices and stock', `<p>Prices are in Ghana cedis (GH₵) and are shown on each product. We check stock when you place an order. If something becomes unavailable or a price was shown in error, we will call you before sending and you can change or cancel the order.</p>`],
+      ['Placing an order', `<p>Your order is confirmed when we call or message you to arrange delivery. We may decline or cancel an order, for example if we cannot reach you or cannot verify a payment. If you have already paid, we refund you in full.</p>`],
+      ['Payment', `<p>You can pay on delivery with cash or mobile money${CFG.paystackPublicKey ? ', or online by mobile money or card through Paystack' : ''}. Online payments are processed by Paystack; we never see your card details.</p>`],
+      ['Delivery', `<p>Our own riders deliver across Accra. The delivery fee depends on your area and is shown at checkout. Please check the device and accessories when they arrive. You can track your order on our <a href="#/track">tracking page</a>.</p>`],
+      ['Receipts and serial numbers', `<p>Every device we sell is recorded against its serial number, which appears on your receipt. Keep your receipt, or the emailed copy, as proof of purchase. The serial number is how we confirm a device was bought from us for returns and warranty claims.</p>`],
+      ['Returns and warranty', `<p>Our <a href="#/policies">returns and warranty policy</a> explains what is covered and how to make a claim. Nothing in these terms takes away rights you have under Ghanaian law.</p>`],
+      ['Contact', `<p>Questions about these terms? ${contactLine(s).replace(/^./, c => c.toUpperCase())}.</p>`]
+    ]
+  }),
+  policies: s => ({
+    title: 'Returns and warranty policy',
+    intro: `We want you to be happy with what you buy. Each product page shows its return window and warranty period, and both are printed on your receipt.`,
+    sections: [
+      ['Returns', `<p>Within the return window shown for your product (usually 7 days from purchase), you can return a device that is faulty or not as described. Bring it back in its original condition with the box, charger and accessories.</p><p>We cannot accept returns for change of mind on opened software, devices with physical or water damage, or items whose serial number does not match our records.</p>`],
+      ['Warranty', `<p>Most devices carry a warranty from the date of purchase, shown on the product page and your receipt. The warranty covers faults in materials and workmanship. It does not cover accidental damage, liquid damage, power surges, unauthorised repairs or normal wear.</p>`],
+      ['How to make a claim', `<ol><li>Find the serial number on your receipt or emailed receipt.</li><li>Start a claim on our <a href="#/returns">returns page</a> with the serial number and the phone number or email you bought with, or bring the device to the shop.</li><li>Bring or send the device to the shop. We check that its serial matches your purchase and inspect it.</li><li>We call you with the outcome: repair, replacement, refund or store credit, depending on the fault and the policy.</li></ol>`],
+      ['Refunds', `<p>Approved refunds are paid back the way you paid where possible (cash, mobile money, or to your card through Paystack). Delivery fees are refunded when the item was faulty or wrong.</p>`],
+      ['Check your cover', `<p>You can check how long a device is covered on our <a href="#/warranty">warranty check page</a>.</p>`]
+    ]
+  })
+};
 
 /* ================= boot ================= */
 (async function boot() {

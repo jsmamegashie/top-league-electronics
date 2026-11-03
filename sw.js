@@ -1,5 +1,5 @@
-const V='prt-v4';
-const SHELL=['/','/staff','/index.html','/app.js','/app.css','/config.js','/manifest.webmanifest','/staff.webmanifest','/icon.svg','/icon-192.png','/icon-512.png','/mark.svg','/mark-small.svg','/mark-light.svg'];
+const V='prt-v6';
+const SHELL=['/','/staff','/index.html','/app.js','/app.css','/config.js','/manifest.webmanifest','/staff.webmanifest','/favicon.png','/icon-192.png','/logo-mark.png','/logo-receipt.png'];
 const CDN=/^https:\/\/(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).catch(()=>{}));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
