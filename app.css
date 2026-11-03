@@ -28,8 +28,8 @@ img{max-width:100%;display:block}
 
 /* brand */
 .lockup{display:flex;align-items:center;gap:10px;color:var(--navy)}
-.lockup .mk{width:32px;height:40px;background:url(/mark-small.svg) center/contain no-repeat;flex-shrink:0}
-.lockup .mk.ring{width:58px;height:48px;background-image:url(/mark.svg)}
+.lockup .mk{width:38px;height:38px;background:url(/mark-small.svg) center/contain no-repeat;flex-shrink:0}
+.lockup .mk.ring{width:44px;height:44px;background-image:url(/mark.svg)}
 .wm{font-weight:700;text-transform:uppercase;line-height:1.05;font-size:15px;letter-spacing:-.005em}
 .wm span{display:block;font-size:9.5px;font-weight:600;letter-spacing:.34em;margin-top:4px;opacity:.85}
 
@@ -212,7 +212,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .mb{padding:18px}
 .mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--line-2);flex-wrap:wrap}
 .reader{width:100%;border-radius:var(--r);overflow:hidden;background:#0A1430;margin-bottom:12px}
-.reader:empty{display:none}
+.reader{display:none}.reader.on{display:block;min-height:220px}
+.reader video{width:100%!important;height:auto!important;display:block}
+.camrow{display:flex;gap:8px;flex-wrap:wrap}.camrow .btn{flex:1;min-width:150px}
+.filebtn{position:relative;overflow:hidden}.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .log{max-height:220px;overflow:auto;margin-top:12px}
 .log div{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-2);font-size:13px;flex-wrap:wrap}
 .log .ok{color:var(--green)}.log .no{color:var(--red)}
@@ -336,3 +339,4 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{display:block;position:absolute;left:0;top:0}.receipt{border:0}}
+.side .lockup .mk,.auth .brandside .lockup .mk,.sfoot .lockup .mk{background-image:url(/mark-light.svg)}

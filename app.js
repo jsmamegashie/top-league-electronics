@@ -1,5 +1,5 @@
 'use strict';
-/* Top League Electronics — store + staff app */
+/* PriceRight Tech Ltd — store + staff app */
 const CFG = window.TLE_CONFIG || {};
 const REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 const IS_STAFF = location.pathname.replace(/\/+$/, '').startsWith('/staff');
@@ -96,7 +96,7 @@ const S = { costs: {}, staff: {} }; COLL.forEach(c => S[c] = {});
 const DEFAULT_SETTINGS = {
   areas: [{ name: 'Dansoman', fee: 25 }, { name: 'Osu', fee: 35 }, { name: 'East Legon', fee: 40 }, { name: 'Madina', fee: 45 }, { name: 'Kasoa', fee: 50 }, { name: 'Tema', fee: 60 }],
   riders: [],
-  store: { name: 'Top League Electronics', branch: 'Main Branch', address: 'Accra, Ghana', phone: '', whatsapp: '', email: '', receiptFooter: 'Returns and warranty claims need the serial number shown above.' }
+  store: { name: 'PriceRight Tech Ltd', branch: 'Main Branch', address: 'Accra, Ghana', phone: '', whatsapp: '', email: '', receiptFooter: 'Returns and warranty claims need the serial number shown above.' }
 };
 // Offline-only accounts are not used once Supabase is connected; staff sign in with their Supabase logins.
 const LOCAL_STAFF = {};
@@ -323,7 +323,7 @@ const API = {
   async verify(serial, contact) {
     if (REMOTE) { const { data, error } = await sb.rpc('verify_purchase', { serial, contact }); if (error) throw new Error(friendlyErr(error.message)); return data }
     const s = normSerial(serial), u = S.units[s];
-    if (!u) return { ok: false, msg: 'No record of this serial. It was not sold by Top League Electronics.' };
+    if (!u) return { ok: false, msg: 'No record of this serial. It was not sold by PriceRight Tech Ltd.' };
     const f = findSaleItem(s);
     if (u.status !== 'sold' || !f) return { ok: false, msg: 'This serial can’t be claimed online. Please contact the shop.' };
     const c = cust(f.sale.custId), n = normPhone(contact), e = String(contact || '').trim().toLowerCase();
@@ -363,7 +363,7 @@ function openScanner({ title, onScan, keepOpen = false, help = '' }) {
   SC = { onScan, keepOpen, last: '', lastT: 0, cam: null };
   modal(esc(title), `${help ? `<p class="muted small" style="margin-bottom:14px">${help}</p>` : ''}
   <div id="reader" class="reader"></div>
-  <div class="row"><button class="btn pri" id="camBtn" onclick="startCam()">${ic('camera', 16)}Scan with camera</button><button class="btn ghost" onclick="stopCam()">Stop camera</button></div>
+  <div class="camrow"><button class="btn pri" id="camBtn" onclick="startCam()">${ic('camera', 16)}Scan with camera</button><label class="btn filebtn">${ic('image', 16)}Take a photo<input type="file" accept="image/*" capture="environment" onchange="scanPhoto(this)"></label></div><div id="readerFile" style="display:none"></div>
   <label class="f" for="manualSerial">Can’t scan it? Type the code</label>
   <div class="row"><input id="manualSerial" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" onkeydown="if(event.key==='Enter')manualScan()"><button class="btn" onclick="manualScan()">Add</button></div>
   <p class="hint">A USB or Bluetooth barcode scanner also works: click in this box and scan. Typed codes are flagged in the audit log.</p>
@@ -379,15 +379,47 @@ async function handleCode(raw, method) {
   if (res.ok && !SC.keepOpen) setTimeout(closeModal, 380);
 }
 function manualScan() { const i = $('#manualSerial'); if (!i) return; const v = i.value; i.value = ''; handleCode(v, 'manual'); i.focus() }
+const SCAN_FORMATS = () => { const F = window.Html5QrcodeSupportedFormats; return F ? ['CODE_128', 'CODE_39', 'CODE_93', 'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'ITF', 'CODABAR', 'QR_CODE', 'DATA_MATRIX', 'PDF_417'].map(k => F[k]).filter(v => v !== undefined) : undefined };
+function camError(e) {
+  const n = (e && (e.name || e.message || e)) + '';
+  if (/NotAllowed|Permission/i.test(n)) return 'Camera permission is blocked. Allow camera access for this site in your browser settings, then try again.';
+  if (/NotFound|Requested device not found|no camera/i.test(n)) return 'No camera found on this device. Use “Take a photo” or type the code.';
+  if (/NotReadable|in use|Could not start/i.test(n)) return 'The camera is being used by another app. Close it and try again.';
+  if (!window.isSecureContext) return 'The camera only works on the secure (https) address.';
+  return 'Couldn’t start the camera. Use “Take a photo” or type the code.';
+}
 async function startCam() {
   if (!SC || SC.cam) return;
-  if (!window.Html5Qrcode) return toast('The camera scanner didn’t load. Check the connection, or type the code.', 'err');
+  if (!window.Html5Qrcode) return toast('The scanner didn’t load. Check the connection, or type the code.', 'err');
+  const box = $('#reader'); if (!box) return; box.classList.add('on');
+  const btn = $('#camBtn'); if (btn) btn.disabled = true;
+  const cfg = { fps: 12, aspectRatio: 1.6, qrbox: (w, h) => ({ width: Math.max(220, Math.floor(w * .88)), height: Math.max(110, Math.floor(Math.min(h, w) * .45)) }) };
+  const make = () => new Html5Qrcode('reader', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
   try {
-    SC.cam = new Html5Qrcode('reader', { verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
-    await SC.cam.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w) => ({ width: Math.floor(Math.min(340, w * .9)), height: 130 }) }, txt => handleCode(txt, 'scan'), () => { });
-  } catch (e) { SC && (SC.cam = null); toast('Camera unavailable. Allow camera access, or type the code.', 'err') }
+    SC.cam = make();
+    try { await SC.cam.start({ facingMode: { ideal: 'environment' } }, cfg, txt => handleCode(txt, 'scan'), () => { }) }
+    catch (e1) {
+      if (/NotAllowed|Permission/i.test((e1 && e1.name || e1) + '')) throw e1;
+      const cams = await Html5Qrcode.getCameras();
+      if (!cams || !cams.length) throw e1;
+      const back = cams.find(c => /back|rear|environment/i.test(c.label)) || cams[cams.length - 1];
+      try { await SC.cam.clear() } catch (e) { }
+      SC.cam = make();
+      await SC.cam.start(back.id, cfg, txt => handleCode(txt, 'scan'), () => { });
+    }
+  } catch (e) { if (SC) SC.cam = null; box.classList.remove('on'); box.innerHTML = ''; toast(camError(e), 'err') }
+  finally { if (btn) btn.disabled = false }
 }
-async function stopCam() { if (SC && SC.cam) { try { await SC.cam.stop(); SC.cam.clear() } catch (e) { } SC.cam = null } }
+async function scanPhoto(inp) {
+  const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+  if (!window.Html5Qrcode) return toast('The scanner didn’t load. Type the code instead.', 'err');
+  await stopCam();
+  const tmp = new Html5Qrcode('readerFile', { verbose: false, formatsToSupport: SCAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+  try { const txt = await tmp.scanFile(f, false); handleCode(txt, 'scan') }
+  catch (e) { beep(false); toast('No barcode found in that photo. Hold the phone steady, fill the frame with the barcode and try again.', 'err') }
+  finally { try { tmp.clear() } catch (e) { } }
+}
+async function stopCam() { if (SC && SC.cam) { try { await SC.cam.stop(); SC.cam.clear() } catch (e) { } SC.cam = null } const b = $('#reader'); if (b) { b.classList.remove('on') } }
 const scanBtn = (label, sub, onclick) => `<button class="scan" onclick="${onclick}"><span class="sq">${ic('scan', 22)}</span><span><b>${label}</b><span class="sub">${sub}</span></span></button>`;
 const emptyBox = (icon, title, text, btn = '') => `<div class="empty">${ic(icon, 28, 1.5)}<b>${title}</b>${text}${btn ? `<div>${btn}</div>` : ''}</div>`;
 
@@ -417,8 +449,8 @@ function renderChrome() { if (IS_STAFF && ME) { const n = $('#navWrap'); if (n) 
 
 /* ================= staff: sign in ================= */
 function renderLogin(err = '') {
-  document.title = 'Sign in · Top League Staff';
-  $('#app').innerHTML = `<div class="auth"><div class="brandside"><div class="lockup"><span class="mk"></span><span class="wm">Top League<span>Electronics</span></span></div>
+  document.title = 'Sign in · PriceRight Staff';
+  $('#app').innerHTML = `<div class="auth"><div class="brandside"><div class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></div>
   <div class="copy"><h1>Every device, scanned in and scanned out.</h1><p>Stock, sales, online orders and returns for the shop, tied together by the serial number.</p><div class="tagrow">${sn('IN STOCK')}${sn('SOLD')}${sn('VERIFIED')}</div></div>
   <small>Staff only. Customers can shop at <a href="/" style="color:#fff">${esc(location.host || 'the store')}</a>.</small></div>
   <div class="formside"><form onsubmit="event.preventDefault();doLogin(this)" novalidate><h2>Sign in</h2><p class="lede">Use the email and password from your IT admin.</p>
@@ -509,9 +541,9 @@ function renderStaff() {
   const r = route(), page = r.parts[0] || 'dashboard';
   const item = NAV.flatMap(g => g[1]).find(i => i[0] === page);
   if (!item || (item[3] && !can(item[3]))) { location.hash = '/dashboard'; return }
-  document.title = TITLES[page] + ' · Top League Staff';
+  document.title = TITLES[page] + ' · PriceRight Staff';
   const body = V[page](r);
-  $('#app').innerHTML = `<div class="app ${UI.menu ? 'open' : ''}"><aside class="side" aria-label="Main menu"><div class="lockup"><span class="mk"></span><span class="wm">Top League<span>Staff</span></span></div>
+  $('#app').innerHTML = `<div class="app ${UI.menu ? 'open' : ''}"><aside class="side" aria-label="Main menu"><div class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Staff</span></span></div>
   <nav id="navWrap">${navHTML()}</nav>
   <div class="foot">${canInstall() ? `<button class="sidebtn" onclick="installApp()">${ic('download', 18)}Install app</button>` : ''}<a class="sidebtn" href="/" target="_blank" rel="noopener">${ic('store', 18)}View online store</a><button class="sidebtn" onclick="signOut()">${ic('logout', 18)}Sign out</button>
   <div class="who"><span class="av">${esc(initials(meName()))}</span><span class="grow"><b>${esc(meName())}</b><span>${meName() === ROLE_NAME[ME.role] ? esc(ME.email) : ROLE_NAME[ME.role]}</span></span></div></div></aside>
@@ -773,13 +805,13 @@ V.receive = () => {
   const R = UI.recv, products = vals('products').sort((a, b) => a.name.localeCompare(b.name)); if (!R.pid && products[0]) R.pid = products[0].id;
   if (!products.length) return `<section class="card">${emptyBox('box', 'Add a product first', 'Stock is received against a product in your catalogue.', can('catalog') ? `<a class="btn pri" href="#/products?new=1">${ic('plus', 16)}Add product</a>` : 'Ask the shop owner to add the product.')}</section>`;
   const p = prod(R.pid) || {}, gap = R.expected && R.items.length < Number(R.expected), batches = vals('batches').sort((a, b) => b.t - a.t).slice(0, 15);
-  return `<div class="pagehead"><p class="lede">Every item goes on the shelf with a serial. Items without a manufacturer serial get a printed Top League label.</p></div>
+  return `<div class="pagehead"><p class="lede">Every item goes on the shelf with a serial. Items without a manufacturer serial get a printed PriceRight label.</p></div>
   <div class="cols c-main"><div><section class="card"><div class="hd"><h2>Delivery</h2></div><div class="bd">
   <label class="f" for="rProd" style="margin-top:0">Product</label><select id="rProd" onchange="UI.recv.pid=this.value;UI.recv.items=[];render()">${products.map(x => `<option value="${x.id}" ${x.id === R.pid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
   <div class="fgrid"><div><label class="f" for="rSup">Supplier</label><input id="rSup" value="${esc(R.supplier)}" oninput="UI.recv.supplier=this.value"></div><div><label class="f" for="rInv">Supplier invoice number</label><input id="rInv" value="${esc(R.invoice)}" oninput="UI.recv.invoice=this.value"></div>
   <div><label class="f" for="rExp">Quantity on invoice</label><input id="rExp" type="number" min="1" value="${esc(R.expected)}" oninput="UI.recv.expected=this.value"></div>${can('cost') ? `<div><label class="f" for="rCost">Unit cost for this delivery (GH₵)</label><input id="rCost" type="number" min="0" step="0.01" value="${esc(R.cost)}" placeholder="${S.costs['p:' + R.pid] ?? ''}" oninput="UI.recv.cost=this.value"></div>` : ''}</div></div></section>
   ${scanBtn('Scan serials', p.phone ? 'Scan each phone’s serial, then its IMEI.' : 'Continuous scanning. Duplicates are blocked.', `openScanner({title:'Scan serials',keepOpen:true,onScan:recvScan,help:'${esc(p.name || '').replace(/'/g, '')}'})`)}
-  <section class="card" style="margin-top:16px"><div class="hd"><h2>No manufacturer serial?</h2></div><div class="bd"><p class="small muted">Generate Top League serials and print barcode labels to stick on each item before it goes on the shelf.</p><div class="row mt"><input id="lblN" type="number" min="1" max="200" placeholder="Number of labels" style="max-width:180px"><button class="btn" onclick="genLabels()">${ic('tag', 16)}Generate labels</button></div></div></section></div>
+  <section class="card" style="margin-top:16px"><div class="hd"><h2>No manufacturer serial?</h2></div><div class="bd"><p class="small muted">Generate PriceRight serials and print barcode labels to stick on each item before it goes on the shelf.</p><div class="row mt"><input id="lblN" type="number" min="1" max="200" placeholder="Number of labels" style="max-width:180px"><button class="btn" onclick="genLabels()">${ic('tag', 16)}Generate labels</button></div></div></section></div>
   <section class="card"><div class="hd"><h2>This delivery</h2><span class="sp"></span>${gap ? st(`${R.items.length} of ${R.expected}, short`, 'a') : (R.expected && R.items.length ? st(`${R.items.length} of ${R.expected}`, 'g') : `<span class="small muted">${R.items.length} scanned</span>`)}</div>
   ${R.items.length ? `<div class="tw"><table><tr><th>Serial</th>${p.phone ? '<th>IMEI</th>' : ''}<th>Captured</th><th></th></tr>${R.items.map((i, k) => `<tr><td>${sn(i.serial, i.method === 'manual' ? 'typed' : '')}</td>${p.phone ? `<td class="mono">${i.imei || '<span style="color:var(--red)">Missing</span>'}</td>` : ''}<td class="small">${i.method === 'label' ? 'Label' : i.method === 'manual' ? 'Typed' : 'Scanned'}</td><td class="num"><button class="btn ghost sm" onclick="UI.recv.items.splice(${k},1);render()" aria-label="Remove">${ic('x', 14)}</button></td></tr>`).join('')}</table></div>` : emptyBox('scan', 'Nothing scanned yet', 'Scanned serials appear here.')}
   <div class="bd" style="border-top:1px solid var(--line-2)">${gap ? `<label class="f" for="gapReason" style="margin-top:0">Reason for the shortfall${can('closeGap') ? '' : ' (owner or IT admin must save)'}</label><input id="gapReason" style="margin-bottom:12px">` : ''}
@@ -788,12 +820,12 @@ V.receive = () => {
 };
 function genLabels() {
   const n = Math.min(200, Number(val('lblN')) || 0); if (!n) return toast('Enter how many labels you need.', 'err');
-  const list = []; for (let i = 0; i < n; i++) { let s; do { s = 'TLE' + rnd(7) } while (S.units[s] || UI.recv.items.some(x => x.serial === s)); UI.recv.items.push({ serial: s, imei: '', method: 'label' }); list.push(s) }
+  const list = []; for (let i = 0; i < n; i++) { let s; do { s = 'PRT' + rnd(7) } while (S.units[s] || UI.recv.items.some(x => x.serial === s)); UI.recv.items.push({ serial: s, imei: '', method: 'label' }); list.push(s) }
   render(); showLabels(list);
 }
 function showLabels(list) {
   const p = prod(UI.recv.pid) || {};
-  modal(`Print ${list.length} label${list.length > 1 ? 's' : ''}`, `<p class="small muted" style="margin-bottom:12px">Stick one on each item before it goes on the shelf. The serials are saved when you add the delivery to stock.</p><div class="labels" id="lblSheet">${list.map(s => `<div class="label"><b>TOP LEAGUE ELECTRONICS</b><svg data-s="${s}"></svg><div>${esc((p.name || '').slice(0, 36))}</div></div>`).join('')}</div>`,
+  modal(`Print ${list.length} label${list.length > 1 ? 's' : ''}`, `<p class="small muted" style="margin-bottom:12px">Stick one on each item before it goes on the shelf. The serials are saved when you add the delivery to stock.</p><div class="labels" id="lblSheet">${list.map(s => `<div class="label"><b>PRICERIGHT TECH LTD</b><svg data-s="${s}"></svg><div>${esc((p.name || '').slice(0, 36))}</div></div>`).join('')}</div>`,
     `<button class="btn" onclick="$('#printArea').innerHTML=$('#lblSheet').outerHTML;window.print()">${ic('printer', 16)}Print labels</button><button class="btn dark" onclick="closeModal()">Done</button>`);
   document.querySelectorAll('#lblSheet svg').forEach(el => { try { JsBarcode(el, el.dataset.s, { format: 'CODE128', height: 40, fontSize: 12, margin: 0 }) } catch (e) { el.outerHTML = '<div class="mono">' + el.dataset.s + '</div>' } });
 }
@@ -803,7 +835,7 @@ async function submitBatch() {
   let note = '';
   if (R.expected && R.items.length < Number(R.expected)) { if (!can('closeGap')) throw new Error('This delivery is short. The owner or IT admin needs to save it with a reason.'); note = val('gapReason').trim(); if (!note) throw new Error('Add a reason for the shortfall.') }
   const id = uid('B'), t = Date.now();
-  const units = R.items.map(i => ({ id: i.serial, serial: i.serial, imei: i.imei, pid: R.pid, status: 'in_stock', batch: id, source: i.method === 'label' ? 'Top League label' : 'Manufacturer', saleId: null, hist: [{ t, type: `Received in batch ${id}`, by: meName() }] }));
+  const units = R.items.map(i => ({ id: i.serial, serial: i.serial, imei: i.imei, pid: R.pid, status: 'in_stock', batch: id, source: i.method === 'label' ? 'PriceRight label' : 'Manufacturer', saleId: null, hist: [{ t, type: `Received in batch ${id}`, by: meName() }] }));
   const ch = { units, batches: [{ id, pid: R.pid, supplier: R.supplier.trim() || 'Not given', invoice: R.invoice.trim() || 'Not given', qty: units.length, expected: Number(R.expected) || null, t, by: meName(), note }], audit: [auditRec('Stock received', `${id}: ${units.length} × ${p.name}${note ? '. Short: ' + note : ''}`)] };
   R.items.filter(i => i.method === 'manual').forEach(i => ch.audit.push(auditRec('Serial typed at intake', i.serial)));
   if (can('cost') && R.cost !== '') ch.costs = units.map(u => ({ key: 'u:' + u.serial, cost: Number(R.cost) }));
@@ -822,7 +854,7 @@ V.inventory = () => {
 };
 function lookup(code) {
   const s = normSerial(code); const u = S.units[s] || vals('units').find(x => x.imei === String(code).trim());
-  if (!u) return modal('No record found', `<div class="refuse">${ic('alert', 16)}<span>${sn(s, 'bad')} was never received by Top League Electronics.</span></div>`, `<button class="btn dark" onclick="closeModal()">Close</button>`);
+  if (!u) return modal('No record found', `<div class="refuse">${ic('alert', 16)}<span>${sn(s, 'bad')} was never received by PriceRight Tech Ltd.</span></div>`, `<button class="btn dark" onclick="closeModal()">Close</button>`);
   const f = findSaleItem(u.serial), c = f && cust(f.sale.custId), cv = f && coverage(f.item, f.sale);
   const canChange = can('unitStatus') && ['in_stock', 'faulty', 'in_repair', 'returned_to_supplier', 'written_off'].includes(u.status);
   modal(esc(pname(u.pid)), `<div class="row" style="margin-bottom:16px">${sn(u.serial)}${stU(u.status)}</div>
@@ -1053,7 +1085,7 @@ V.settings = () => {
   <section class="card"><div class="hd"><h2>System</h2></div><div class="bd"><dl class="kv"><div><dt>Database</dt><dd>${REMOTE ? 'Connected to Supabase' : 'Not connected. Data is saved on this device only.'}</dd></div><div><dt>Online payments</dt><dd>${CFG.paystackPublicKey ? 'Paystack enabled' : 'Pay on delivery only'}</dd></div></dl><div class="row mt"><button class="btn" onclick="backup()">${ic('download', 16)}Download backup</button></div></div></section></div></div>`;
 };
 const areaRow = (a, i) => `<div class="row" style="margin-bottom:8px" data-area><input value="${esc(a.name)}" placeholder="Area" aria-label="Area"><input type="number" min="0" value="${esc(a.fee)}" placeholder="Fee" aria-label="Fee in cedis" style="max-width:110px;flex:0 0 110px"><button class="btn ghost sm" onclick="this.parentElement.remove()" aria-label="Remove">${ic('trash', 15)}</button></div>`;
-async function saveStore() { const s = { name: val('stN').trim() || 'Top League Electronics', branch: val('stB').trim(), address: val('stA').trim(), phone: val('stP').trim(), whatsapp: val('stW').trim(), email: val('stE').trim(), receiptFooter: val('stF').trim() }; await tx({ settings: [{ id: 'store', data: s }], audit: [auditRec('Store details updated', '')] }); toast('Store details saved', 'ok') }
+async function saveStore() { const s = { name: val('stN').trim() || 'PriceRight Tech Ltd', branch: val('stB').trim(), address: val('stA').trim(), phone: val('stP').trim(), whatsapp: val('stW').trim(), email: val('stE').trim(), receiptFooter: val('stF').trim() }; await tx({ settings: [{ id: 'store', data: s }], audit: [auditRec('Store details updated', '')] }); toast('Store details saved', 'ok') }
 async function saveAreas() { const a = [...document.querySelectorAll('[data-area]')].map(r => { const [n, f] = r.querySelectorAll('input'); return { name: n.value.trim(), fee: Number(f.value) || 0 } }).filter(a => a.name); await tx({ settings: [{ id: 'areas', data: a }], audit: [auditRec('Delivery areas updated', a.map(x => `${x.name} ${x.fee}`).join(', '))] }); toast('Delivery areas saved', 'ok'); render() }
 async function saveRiders(list) { await tx({ settings: [{ id: 'riders', data: list }], audit: [auditRec('Riders updated', list.join(', '))] }); render() }
 function backup() { const d = {}; COLL.forEach(c => d[c] = S[c]); if (can('cost')) d.costs = S.costs; download(`top-league-backup-${ymd()}.json`, JSON.stringify(d, null, 1), 'application/json') }
@@ -1092,17 +1124,17 @@ function renderStore() {
   const views = { '': SV.home, p: SV.product, cart: SV.cart, done: SV.done, track: SV.track, returns: SV.returns, warranty: SV.warranty };
   const body = (views[page] || SV.home)(r);
   const store = set_('store'), wa = normPhone(store.whatsapp);
-  document.title = page === 'p' && prod(r.parts[1]) ? prod(r.parts[1]).name + ' · Top League Electronics' : 'Top League Electronics';
-  $('#app').innerHTML = `<header class="shead"><div class="in"><a href="#/" class="lockup" aria-label="Top League Electronics home"><span class="mk ring"></span><span class="wm">Top League<span>Electronics</span></span></a>
+  document.title = page === 'p' && prod(r.parts[1]) ? prod(r.parts[1]).name + ' · PriceRight Tech Ltd' : 'PriceRight Tech Ltd';
+  $('#app').innerHTML = `<header class="shead"><div class="in"><a href="#/" class="lockup" aria-label="PriceRight Tech Ltd home"><span class="mk ring"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></a>
   <nav class="snav">${SNAV.map(([k, l]) => `<a href="#/${k}" class="${page === k ? 'act' : ''}">${l}</a>`).join('')}</nav><span style="flex:1"></span>
   <div class="search" role="search">${ic('search', 16)}<input placeholder="Search products" value="${esc(r.q.get('q') || '')}" onkeydown="if(event.key==='Enter')go('?q='+encodeURIComponent(this.value))" aria-label="Search products"></div>
   <a class="btn cartbtn" href="#/cart">${ic('cart', 17)}<span>Cart</span><span class="n ${cartCount() ? '' : 'hide'}" id="cartN">${cartCount()}</span></a>
   <button class="drawer-btn" onclick="$('#drawer').classList.add('open')" aria-label="Menu">${ic('menu', 22)}</button></div></header>
-  <div class="drawer" id="drawer"><div class="scr" onclick="$('#drawer').classList.remove('open')"></div><div class="pane"><div class="row between" style="margin-bottom:10px"><span class="lockup"><span class="mk"></span><span class="wm">Top League<span>Electronics</span></span></span><button class="btn ghost sm" onclick="$('#drawer').classList.remove('open')" aria-label="Close">${ic('x', 18)}</button></div>
+  <div class="drawer" id="drawer"><div class="scr" onclick="$('#drawer').classList.remove('open')"></div><div class="pane"><div class="row between" style="margin-bottom:10px"><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><button class="btn ghost sm" onclick="$('#drawer').classList.remove('open')" aria-label="Close">${ic('x', 18)}</button></div>
   <div class="search" style="width:100%;margin-bottom:8px">${ic('search', 16)}<input placeholder="Search products" onkeydown="if(event.key==='Enter'){$('#drawer').classList.remove('open');go('?q='+encodeURIComponent(this.value))}"></div>
   ${SNAV.map(([k, l]) => `<a href="#/${k}" onclick="$('#drawer').classList.remove('open')">${l}</a>`).join('')}<a href="#/cart" onclick="$('#drawer').classList.remove('open')">Cart (${cartCount()})</a>${canInstall() ? `<a href="#" onclick="event.preventDefault();installApp()">Install the app</a>` : ''}</div></div>
   <main class="store">${body}</main>
-  <footer class="sfoot"><div class="in"><div><span class="lockup"><span class="mk"></span><span class="wm">Top League<span>Electronics</span></span></span><p style="margin-top:14px;max-width:36ch">Laptops, phones, CCTV and storage. Every device sold with its serial number on the receipt.</p></div>
+  <footer class="sfoot"><div class="in"><div><span class="lockup"><span class="mk"></span><span class="wm">PriceRight<span>Tech Ltd</span></span></span><p style="margin-top:14px;max-width:36ch">Laptops, phones, CCTV and storage. Every device sold with its serial number on the receipt.</p></div>
   <div><h4>Help</h4><a href="#/track">Track an order</a><a href="#/returns">Return an item</a><a href="#/warranty">Check a warranty</a>${canInstall() ? `<button class="lnk" onclick="installApp()">Install the app</button>` : ''}</div>
   <div><h4>Visit or call</h4>${store.address ? `<span style="display:block;padding:3px 0">${esc(store.branch ? store.branch + ', ' : '')}${esc(store.address)}</span>` : ''}${store.phone ? `<a href="tel:${esc(store.phone)}">${esc(store.phone)}</a>` : ''}${wa.length >= 9 ? `<a href="https://wa.me/233${wa.slice(1)}" target="_blank" rel="noopener">WhatsApp us</a>` : ''}${store.email ? `<a href="mailto:${esc(store.email)}">${esc(store.email)}</a>` : ''}</div></div>
   <div class="base"><span>© ${new Date().getFullYear()} ${esc(store.name)}</span><a href="/staff" style="color:inherit">Staff sign in</a></div></footer>`;
