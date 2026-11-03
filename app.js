@@ -98,11 +98,8 @@ const DEFAULT_SETTINGS = {
   riders: [],
   store: { name: 'Top League Electronics', branch: 'Main Branch', address: 'Accra, Ghana', phone: '', whatsapp: '', email: '', receiptFooter: 'Returns and warranty claims need the serial number shown above.' }
 };
-const LOCAL_STAFF = {
-  'madamdigitall@gmail.com': { email: 'madamdigitall@gmail.com', role: 'it_admin', name: 'IT admin', hash: 'e6266013a52b7d61c651e043f649ff60680ec687cd43350623aaec53863d0a86' },
-  'admintp@gmail.com': { email: 'admintp@gmail.com', role: 'owner', name: 'Shop owner', hash: 'b11e2a91ed923ef8dca71a4b5935ce10190d3492264453e36478e52102152a6c' },
-  'shop@tp.com': { email: 'shop@tp.com', role: 'attendant', name: 'Shop assistant', hash: 'd6feefc3f2c54c6ecfe3f43b074b2078f082c25142e17f2d4b3b9cfac1d84e44' }
-};
+// Offline-only accounts are not used once Supabase is connected; staff sign in with their Supabase logins.
+const LOCAL_STAFF = {};
 const set_ = k => S.settings[k] ?? DEFAULT_SETTINGS[k];
 let ME = null, sb = null;
 const NET = { online: navigator.onLine, outbox: [] };
