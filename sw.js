@@ -1,4 +1,4 @@
-const V='prt-v6';
+const V='prt-v7';
 const SHELL=['/','/staff','/index.html','/app.js','/app.css','/config.js','/manifest.webmanifest','/staff.webmanifest','/favicon.png','/icon-192.png','/logo-mark.png','/logo-receipt.png'];
 const CDN=/^https:\/\/(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).catch(()=>{}));self.skipWaiting()});
